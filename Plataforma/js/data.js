@@ -107,7 +107,7 @@ const TOPICS_DATA = {
         color: '#3b82f6',
         colorLight: '#dbeafe',
         description: 'O peso de ser provedor não precisa ser carregado sozinho',
-        link: 'https://chat.whatsapp.com/GRUPO_M_FINANCEIRA',
+        link: 'https://chat.whatsapp.com/BK0KLgwLZUnJRxOyhEIxmg',
         subtopics: [
           { name: 'Ansiedade financeira', emoji: '💰' },
           { name: 'Pressão para ser provedor', emoji: '🏋️' },
@@ -123,7 +123,7 @@ const TOPICS_DATA = {
         color: '#14b8a6',
         colorLight: '#ccfbf1',
         description: 'Sentir é humano. Expressar é libertador',
-        link: 'https://chat.whatsapp.com/GRUPO_M_EMOCOES',
+        link: 'https://chat.whatsapp.com/DPlhxJEahvm6rSLesfwEm9',
         subtopics: [
           { name: 'Repressão emocional', emoji: '🤐' },
           { name: 'Dificuldade em pedir ajuda', emoji: '🤝' },
@@ -139,7 +139,7 @@ const TOPICS_DATA = {
         color: '#f59e0b',
         colorLight: '#fef3c7',
         description: 'Reconhecer é o primeiro passo para a liberdade',
-        link: 'https://chat.whatsapp.com/GRUPO_M_VICIOS',
+        link: 'https://chat.whatsapp.com/DXkYvqraFMaDf99z6MwlN1',
         subtopics: [
           { name: 'Alcoolismo', emoji: '🍺' },
           { name: 'Jogos e apostas', emoji: '🎰' },
@@ -155,7 +155,7 @@ const TOPICS_DATA = {
         color: '#6366f1',
         colorLight: '#e0e7ff',
         description: 'Ser presente é a maior força que existe',
-        link: 'https://chat.whatsapp.com/GRUPO_M_PATERNIDADE',
+        link: 'https://chat.whatsapp.com/L0hSQYy5Sra5rXULpwAoAe',
         subtopics: [
           { name: 'Dificuldade de intimidade', emoji: '💑' },
           { name: 'Paternidade e ausência', emoji: '👶' },
@@ -171,7 +171,7 @@ const TOPICS_DATA = {
         color: '#10b981',
         colorLight: '#d1fae5',
         description: 'Encontre quem você realmente é, além das expectativas',
-        link: 'https://chat.whatsapp.com/GRUPO_M_IDENTIDADE',
+        link: '#', // placeholder — link ainda não disponível
         subtopics: [
           { name: 'Crise de identidade', emoji: '🔍' },
           { name: 'Falta de propósito', emoji: '🧭' },
@@ -190,6 +190,13 @@ const GENERAL_GROUP = {
   description: 'Grupo geral de acolhimento para todos que buscam apoio',
   icon: '💚',
   link: 'https://chat.whatsapp.com/Dgr1B1qgoyhEMRQ6yaHaYh'
+};
+
+const MOVIMENTAR_GROUP = {
+  title: 'Projeto MeMovimentar',
+  description: 'Grupo de incentivo para as pessoas fazerem exercícios físicos para combater o sedentarismo',
+  icon: '🏃',
+  link: 'https://chat.whatsapp.com/Cv2W1QzuPFB6tuOLxMjMB4'
 };
 
 const PARTNER_LINK = {

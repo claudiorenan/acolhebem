@@ -52,6 +52,13 @@ function extractXsrfToken(cookieString: string): string | null {
   return decodeURIComponent(match[1]);
 }
 
+/**
+ * Capitalize first letter of each word.
+ */
+function capitalize(str: string): string {
+  return str.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -108,51 +115,36 @@ serve(async (req: Request) => {
       redirect: "manual",
     });
 
-    // Sanctum returns 200 or 204 on success, 422 on invalid credentials
-    if (loginResponse.status === 422 || loginResponse.status === 401) {
+    // Sanctum returns 302 (redirect) on success, 422 on invalid credentials
+    const loginStatus = loginResponse.status;
+    if (loginStatus === 422 || loginStatus === 401) {
       return new Response(
         JSON.stringify({ error: "Credenciais inválidas no Cadê Meu Psi." }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Merge session cookies from login response
-    const loginCookies = parseCookies(loginResponse);
-    const allCookies = [cookies, loginCookies].filter(Boolean).join("; ");
-    const newXsrf = extractXsrfToken(allCookies) || xsrfToken;
-
-    // ========================================
-    // STEP 3: Fetch user data from API
-    // ========================================
-    const userResponse = await fetch(`${CADEMEUPSI_BASE}/api/v1/user`, {
-      method: "GET",
-      headers: {
-        "Accept": "application/json",
-        "Cookie": allCookies,
-        "X-XSRF-TOKEN": newXsrf,
-        "Referer": CADEMEUPSI_BASE,
-      },
-    });
-
-    if (!userResponse.ok) {
+    // Accept 200, 204, or 302 as successful login
+    if (loginStatus !== 200 && loginStatus !== 204 && loginStatus !== 302) {
       return new Response(
-        JSON.stringify({ error: "Erro ao buscar dados do profissional." }),
+        JSON.stringify({ error: "Erro inesperado ao autenticar. Tente novamente." }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const psiUser = await userResponse.json();
-
-    // Extract useful fields (adapt based on actual API response structure)
-    const psiName = psiUser.name || psiUser.data?.name || email.split("@")[0];
-    const firstName = psiName.split(" ")[0];
+    // ========================================
+    // STEP 3: Derive display name from email
+    // (API endpoints require same-domain session,
+    //  so login success = confirmed psychologist)
+    // ========================================
+    const emailPrefix = email.split("@")[0];
+    // Try to extract a readable name from the email prefix
+    const cleanName = emailPrefix
+      .replace(/[._\-]/g, " ")
+      .replace(/\d+/g, "")
+      .trim();
+    const firstName = capitalize(cleanName.split(" ")[0] || emailPrefix.split("@")[0]);
     const displayName = `Psi.${firstName}`;
-    const crp = psiUser.crp || psiUser.data?.crp || null;
-    const psiId = psiUser.id || psiUser.data?.id || null;
-    const psiWhatsapp = psiUser.whatsapp || psiUser.data?.whatsapp || psiUser.phone || psiUser.data?.phone || null;
-    const psiCity = psiUser.city || psiUser.data?.city || null;
-    const psiState = psiUser.state || psiUser.data?.state || null;
-    const psiPhoto = psiUser.photo || psiUser.data?.photo || psiUser.avatar || psiUser.data?.avatar || null;
 
     // ========================================
     // STEP 4: Create/update Supabase user
@@ -206,26 +198,29 @@ serve(async (req: Request) => {
 
     // ========================================
     // STEP 5: Upsert profile with psi data
+    // Use RPC function (SECURITY DEFINER) to bypass
+    // the protect_psi_fields trigger
     // ========================================
-    const profileData: Record<string, unknown> = {
-      id: userId,
-      name: displayName,
-      is_psi: true,
-      cademeupsi_id: psiId,
-      crp: crp,
-    };
+    const rpcResp = await fetch(
+      `${supabaseUrl}/rest/v1/rpc/set_psi_profile`,
+      {
+        method: "POST",
+        headers: {
+          "apikey": supabaseServiceKey,
+          "Authorization": `Bearer ${supabaseServiceKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          p_id: userId,
+          p_name: displayName,
+          p_email: email,
+        }),
+      }
+    );
 
-    if (psiWhatsapp) profileData.whatsapp = psiWhatsapp;
-    if (psiCity) profileData.city = psiCity;
-    if (psiState) profileData.state = psiState;
-    if (psiPhoto) profileData.photo_url = psiPhoto;
-
-    const { error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .upsert(profileData, { onConflict: "id" });
-
-    if (profileError) {
-      console.error("Profile upsert error:", profileError);
+    if (!rpcResp.ok) {
+      const errBody = await rpcResp.text();
+      console.error("Profile RPC error:", errBody);
     }
 
     // ========================================
