@@ -441,6 +441,24 @@ img,svg{display:block}
 }
 .wpp-btn-big:active{transform:translateY(-1px)}
 
+/* Community Enter Button (inside topic cards) */
+.community-enter-btn{
+    display:flex;align-items:center;justify-content:center;gap:10px;
+    width:100%;padding:14px 24px;border-radius:var(--r-md);
+    background:var(--btn-color, var(--emerald));color:var(--white);
+    font-size:.95rem;font-weight:700;
+    border:none;cursor:pointer;
+    transition:all var(--dur-fast);
+    box-shadow:0 4px 16px rgba(47,111,100,.25);
+    margin-top:12px;
+}
+.community-enter-btn svg{width:20px;height:20px;flex-shrink:0}
+.community-enter-btn:hover{
+    filter:brightness(1.1);transform:translateY(-2px);
+    box-shadow:0 6px 20px rgba(47,111,100,.35);
+}
+.community-enter-btn:active{transform:translateY(0)}
+
 /* ==========================================================
    GENERAL GROUP CARD
    ========================================================== */

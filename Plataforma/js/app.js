@@ -1333,8 +1333,12 @@ class AcolheBemApp {
             card.className = 'topic-card';
             card.id = 'topic-' + c.id;
 
+            const tags = c.subtopics.map(s =>
+                `<span class="sub-tag"><span class="sub-tag-emoji">${s.emoji}</span>${s.name}</span>`
+            ).join('');
+
             card.innerHTML = `
-                <div class="tc-header" role="button" tabindex="0">
+                <div class="tc-header" role="button" tabindex="0" aria-expanded="false">
                     <div class="tc-num" style="background:${c.color}">${c.id}</div>
                     <span class="tc-emoji">${c.icon}</span>
                     <div class="tc-info">
@@ -1342,14 +1346,42 @@ class AcolheBemApp {
                         <div class="tc-desc">${c.description}</div>
                     </div>
                     <div class="tc-chevron">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                </div>
+                <div class="tc-body">
+                    <div class="tc-body-inner">
+                        <p class="tc-themes-label">Temas abordados neste grupo:</p>
+                        <div class="sub-tags">${tags}</div>
+                        <button class="community-enter-btn" style="--btn-color:${c.color}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            <span>Entrar na comunidade</span>
+                        </button>
                     </div>
                 </div>`;
 
+            // Accordion toggle
             const hdr = card.querySelector('.tc-header');
-            hdr.addEventListener('click', async () => {
-                // Navigate to community tab showing this topic's feed + summary
-                const gender = this.gender; // 'women' or 'men'
+            hdr.addEventListener('click', () => {
+                const wasOpen = card.classList.contains('open');
+                area.querySelectorAll('.topic-card.open').forEach(other => {
+                    other.classList.remove('open');
+                    other.querySelector('.tc-header').setAttribute('aria-expanded', false);
+                });
+                if (!wasOpen) {
+                    card.classList.add('open');
+                    hdr.setAttribute('aria-expanded', true);
+                }
+            });
+            hdr.addEventListener('keydown', e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); hdr.click(); }
+            });
+
+            // "Entrar na comunidade" button — navigates to community feed
+            const enterBtn = card.querySelector('.community-enter-btn');
+            enterBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const gender = this.gender;
                 const slug = this._slugify(c.title) + '-' + gender;
 
                 // Ensure DB topics map is loaded
@@ -1383,9 +1415,6 @@ class AcolheBemApp {
                 this.currentTab = 'community';
                 this.$$('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === 'community'));
                 this.showCommunity();
-            });
-            hdr.addEventListener('keydown', e => {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); hdr.click(); }
             });
 
             area.appendChild(card);
