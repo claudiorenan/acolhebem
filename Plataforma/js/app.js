@@ -1249,14 +1249,6 @@ class AcolheBemApp {
             this.loadPsiAvailable();
         });
 
-        // Hide photos toggle for psi cards
-        this.$('hidePsiPhotosBtn').addEventListener('click', () => {
-            const grid = this.$('psiAvailableGrid');
-            const btn = this.$('hidePsiPhotosBtn');
-            const hidden = grid.classList.toggle('hide-avatars');
-            btn.classList.toggle('active', hidden);
-            btn.querySelector('span').textContent = hidden ? 'Mostrar fotos' : 'Ocultar fotos';
-        });
     }
 
     showTopicsListing() {
