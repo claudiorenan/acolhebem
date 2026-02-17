@@ -912,6 +912,15 @@ img,svg{display:block}
     box-shadow:var(--shadow-2);
     transform:translateY(-2px);
 }
+.topic-page.tp-locked{
+    opacity:.7;
+}
+.topic-page.tp-locked:hover{
+    transform:none;box-shadow:var(--shadow-1);
+}
+.tp-lock{
+    font-size:.7rem;margin-top:4px;
+}
 .tp-header{
     padding:16px 10px 10px;
     text-align:center;

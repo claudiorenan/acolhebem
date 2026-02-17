@@ -1023,15 +1023,23 @@ class AcolheBemApp {
 
         const page = document.createElement('div');
         page.className = 'topic-page';
+        if (!this.currentUser) page.classList.add('tp-locked');
+
+        const lockIcon = !this.currentUser ? '<span class="tp-lock">🔒</span>' : '';
 
         page.innerHTML = `
             <div class="tp-header" style="background:${cat.colorLight}">
                 <span class="tp-emoji">${cat.icon}</span>
                 <h3 class="tp-title">${this.escapeHTML(cat.title)}</h3>
+                ${lockIcon}
             </div>
         `;
 
         page.addEventListener('click', async () => {
+            if (!this.currentUser) {
+                this.openOverlay('authModal');
+                return;
+            }
             let topicData;
             if (dbTopic) {
                 topicData = dbTopic;
