@@ -1027,7 +1027,7 @@ class AcolheBemApp {
         if (!this.currentUser) page.classList.add('tp-locked');
 
         const lockIcon = !this.currentUser ? '<span class="tp-lock">🔒</span>' : '';
-        const ctaText = !this.currentUser ? 'entre para acessar' : 'clique para entrar';
+        const ctaText = 'Clique para entrar';
 
         page.innerHTML = `
             <div class="tp-header" style="background:${cat.colorLight}">
