@@ -996,7 +996,7 @@ class AcolheBemApp {
         topicsList.appendChild(femLabel);
 
         TOPICS_DATA.women.categories.forEach(cat => {
-            topicsList.appendChild(this.buildTopicItem(cat, 'women'));
+            topicsList.appendChild(this.buildTopicPage(cat, 'women'));
         });
 
         // Render Masculino section
@@ -1006,7 +1006,7 @@ class AcolheBemApp {
         topicsList.appendChild(mascLabel);
 
         TOPICS_DATA.men.categories.forEach(cat => {
-            topicsList.appendChild(this.buildTopicItem(cat, 'men'));
+            topicsList.appendChild(this.buildTopicPage(cat, 'men'));
         });
     }
 
@@ -1017,38 +1017,49 @@ class AcolheBemApp {
             .replace(/^-|-$/g, '');
     }
 
-    buildTopicItem(cat, gender) {
+    buildTopicPage(cat, gender) {
         const slug = this._slugify(cat.title) + '-' + gender;
         const dbTopic = this._dbTopicsMap[slug];
         const postCount = dbTopic ? dbTopic.post_count : 0;
 
-        const item = document.createElement('div');
-        item.className = 'topic-item';
-        item.style.borderLeft = `4px solid ${cat.color}`;
-        item.innerHTML = `
-            <span class="topic-item-emoji">${cat.icon}</span>
-            <div class="topic-item-info">
-                <div class="topic-item-name">${this.escapeHTML(cat.title)}</div>
-                <div class="topic-item-desc">${this.escapeHTML(cat.description)}</div>
+        const page = document.createElement('div');
+        page.className = 'topic-page';
+        page.style.setProperty('--topic-color', cat.color);
+        page.style.setProperty('--topic-color-light', cat.colorLight);
+
+        const tags = cat.subtopics.map(s =>
+            `<span class="tp-tag"><span class="tp-tag-emoji">${s.emoji}</span>${this.escapeHTML(s.name)}</span>`
+        ).join('');
+
+        page.innerHTML = `
+            <div class="tp-header" style="background:${cat.colorLight}">
+                <span class="tp-emoji">${cat.icon}</span>
+                <h3 class="tp-title">${this.escapeHTML(cat.title)}</h3>
+                <p class="tp-desc">${this.escapeHTML(cat.description)}</p>
             </div>
-            <div class="topic-item-meta">
-                <span class="topic-item-count">${postCount}</span>
-                <svg class="topic-item-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            <div class="tp-body">
+                <p class="tp-label">Temas abordados</p>
+                <div class="tp-tags">${tags}</div>
+                <div class="tp-footer">
+                    <span class="tp-posts">${postCount} ${postCount === 1 ? 'publicacao' : 'publicacoes'}</span>
+                    <button class="tp-enter-btn" style="background:${cat.color}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        Entrar na comunidade
+                    </button>
+                </div>
             </div>
         `;
-        item.addEventListener('click', async () => {
-            // Resolve DB topic — find existing or create
+
+        page.querySelector('.tp-enter-btn').addEventListener('click', async () => {
             let topicData;
             if (dbTopic) {
                 topicData = dbTopic;
             } else {
-                // Auto-create the DB topic for this category
-                const { topic, error } = await Feed.createTopicAuto(cat.title, cat.icon, cat.description, slug, cat.color, gender);
+                const { topic } = await Feed.createTopicAuto(cat.title, cat.icon, cat.description, slug, cat.color, gender);
                 if (topic) {
                     topicData = topic;
                     this._dbTopicsMap[slug] = topic;
                 } else {
-                    // Fallback: use a temp object
                     topicData = { id: null, name: cat.title, emoji: cat.icon, slug, description: cat.description, color: cat.color, post_count: 0 };
                 }
             }
@@ -1057,7 +1068,8 @@ class AcolheBemApp {
             this._currentCategoryData = cat;
             this.showTopicFeed(topicData.id, { emoji: cat.icon, name: cat.title });
         });
-        return item;
+
+        return page;
     }
 
     async showTopicFeed(topicId, topicData) {
