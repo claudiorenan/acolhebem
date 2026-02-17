@@ -15,8 +15,30 @@ class ParticleSystem {
         this.running = true;
         this.colors = ['#2f6f64','#e9b384','#d6336c','#1971c2','#7c3aed'];
         this.resize();
-        window.addEventListener('resize', () => this.resize());
+        this._resizeDebounce = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(this._resizeDebounce);
+            this._resizeDebounce = setTimeout(() => this.resize(), 150);
+        });
         window.addEventListener('mousemove', e => { this.mouse.x = e.clientX; this.mouse.y = e.clientY; });
+        window.addEventListener('touchmove', e => {
+            if (e.touches.length > 0) {
+                this.mouse.x = e.touches[0].clientX;
+                this.mouse.y = e.touches[0].clientY;
+            }
+        }, { passive: true });
+        window.addEventListener('touchend', () => { this.mouse.x = -1000; this.mouse.y = -1000; }, { passive: true });
+
+        // Pause when tab is hidden (saves battery on mobile)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                this.running = false;
+            } else {
+                this.running = true;
+                this.loop();
+            }
+        });
+
         this.spawn(60);
         this.loop();
     }
