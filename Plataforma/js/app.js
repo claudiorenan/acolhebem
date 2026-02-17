@@ -1020,7 +1020,6 @@ class AcolheBemApp {
     buildTopicPage(cat, gender) {
         const slug = this._slugify(cat.title) + '-' + gender;
         const dbTopic = this._dbTopicsMap[slug];
-        const postCount = dbTopic ? dbTopic.post_count : 0;
 
         const page = document.createElement('div');
         page.className = 'topic-page';
@@ -1029,9 +1028,6 @@ class AcolheBemApp {
             <div class="tp-header" style="background:${cat.colorLight}">
                 <span class="tp-emoji">${cat.icon}</span>
                 <h3 class="tp-title">${this.escapeHTML(cat.title)}</h3>
-            </div>
-            <div class="tp-body">
-                <span class="tp-posts">${postCount} posts</span>
             </div>
         `;
 
