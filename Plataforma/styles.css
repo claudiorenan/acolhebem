@@ -246,6 +246,10 @@ img,svg{display:block}
 .tab-btn[data-tab="women"].active{color:var(--fem)}
 .tab-btn[data-tab="men"].active{color:var(--masc)}
 
+/* Tab labels: full by default, short hidden */
+.tab-label-short{display:none}
+.tab-label-full{display:inline}
+
 .topbar-btn{
     width:40px;height:40px;border-radius:var(--r-sm);
     display:flex;align-items:center;justify-content:center;
@@ -527,8 +531,18 @@ img,svg{display:block}
     text-align:center;color:var(--ink-40);
     border-top:1px solid var(--ink-10);
 }
-.gf-inner p{font-size:.9rem;margin-bottom:4px}
-.gf-small{font-size:.78rem !important;color:var(--ink-20) !important}
+.gf-inner{display:flex;flex-direction:column;align-items:center;gap:2px}
+.gf-brand{
+    font-family:var(--f-display);
+    font-size:1.1rem;font-weight:700;
+    color:var(--emerald);
+    margin:0;
+}
+.gf-tagline{
+    font-size:.85rem;font-weight:500;
+    color:var(--emerald);opacity:.75;
+    margin:0;
+}
 
 /* ==========================================================
    KEYFRAMES
@@ -545,11 +559,17 @@ img,svg{display:block}
    MOBILE
    ========================================================== */
 @media(max-width:600px){
-    .topbar{padding:0 10px;gap:4px}
-    .topbar-logo{font-size:1rem}
-    .tab-btn{padding:7px 14px;font-size:.78rem;gap:5px}
-    .tab-btn .tab-icon{width:15px;height:15px}
-    #heroSVG{height:480px}
+    .topbar{padding:0 8px;gap:2px;height:auto;min-height:52px;flex-wrap:wrap;padding-top:6px;padding-bottom:6px}
+    .topbar-brand{order:0}
+    .topbar-logo{font-size:.95rem}
+    .topbar-tabs{order:2;width:100%;margin:4px 0 0;justify-content:center;gap:2px;padding:2px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .topbar-tabs::-webkit-scrollbar{display:none}
+    .topbar-right{order:1;margin-left:auto}
+    .tab-btn{padding:5px 10px;font-size:.62rem;gap:2px;white-space:nowrap;flex-shrink:0;flex-direction:column;align-items:center;line-height:1}
+    .tab-btn .tab-icon{width:16px;height:16px}
+    .tab-label-full{display:none !important}
+    .tab-label-short{display:inline !important;font-size:.6rem;font-weight:600;letter-spacing:-.01em}
+    #heroSVG{height:380px}
     .tc-header{padding:16px}
     .tc-body-inner{padding:0 16px 16px}
     .sub-tags{gap:6px}
@@ -559,6 +579,14 @@ img,svg{display:block}
     .modal-title{font-size:clamp(2.2rem,8vw,3rem)}
     .modal-desc{font-size:.92rem}
     .modal-enter-btn{padding:12px 28px;font-size:.92rem}
+}
+
+/* Tablet: show labels but compact */
+@media(min-width:601px) and (max-width:768px){
+    .topbar{padding:0 10px;gap:4px}
+    .topbar-logo{font-size:1rem}
+    .tab-btn{padding:7px 12px;font-size:.76rem;gap:4px}
+    .tab-btn .tab-icon{width:15px;height:15px}
 }
 
 /* ==========================================================
@@ -607,6 +635,11 @@ img,svg{display:block}
     .partner-card{padding:16px 18px}
 
     .groups-footer{display:none}
+
+    /* Community and Psicologos sections need to scroll inside the locked viewport */
+    .community-section,.psicologos-section{
+        flex:1;overflow-y:auto;max-height:calc(100vh - 60px);
+    }
 }
 
 /* Scrollbar */
@@ -1111,6 +1144,33 @@ img,svg{display:block}
 }
 .filter-select:focus{outline:none;border-color:var(--emerald)}
 
+/* Hide Photos Button */
+.hide-photos-btn{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:7px 14px;border-radius:100px;
+    border:1.5px solid var(--ink-10);
+    font-size:.82rem;font-weight:500;color:var(--ink-40);
+    background:var(--white);
+    font-family:var(--f-body);
+    cursor:pointer;transition:all var(--dur-fast);
+}
+.hide-photos-btn svg{width:16px;height:16px;flex-shrink:0}
+.hide-photos-btn:hover{border-color:var(--ink-20);color:var(--ink-70)}
+.hide-photos-btn.active{
+    background:var(--emerald-l);border-color:var(--emerald);color:var(--emerald-d);
+}
+
+/* Hide avatars mode — community */
+.feed-list.hide-avatars .feed-post-avatar,
+.feed-list.hide-avatars .feed-reply-avatar{
+    visibility:hidden;
+}
+/* Hide avatars mode — psi cards */
+.psi-available-grid.hide-avatars .psi-card-avatar,
+.psi-available-grid.hide-avatars .psi-card-avatar-fallback{
+    visibility:hidden;
+}
+
 /* Anonymous Toggle */
 .anon-toggle{
     display:flex;align-items:center;gap:6px;
@@ -1495,6 +1555,12 @@ img,svg{display:block}
     .admin-post-actions{flex-wrap:wrap}
     .admin-member-item{padding:10px 12px;gap:10px}
     .admin-topic-fields{gap:8px}
+
+    /* Psicologos mobile — already has its own @media but reinforce here */
+    .psicologos-section{padding:12px 10px 32px}
+    .psicologos-header{margin-bottom:16px}
+    .psicologos-title{font-size:1.15rem}
+    .psicologos-subtitle{font-size:.82rem}
 }
 
 /* ============================================================
@@ -1507,4 +1573,335 @@ img,svg{display:block}
     margin-left:4px;vertical-align:middle;
     letter-spacing:.3px;
     box-shadow:0 1px 3px rgba(47,111,100,.25);
+}
+
+/* ============================================================
+   PSICOLOGOS SECTION — Available psychologists tab
+   ============================================================ */
+.psicologos-section{
+    max-width:720px;width:100%;margin:0 auto;
+    padding:24px 16px 48px;
+    overflow-y:auto;
+}
+
+.psicologos-header{
+    margin-bottom:24px;
+}
+.psicologos-title{
+    font-family:var(--f-display);
+    font-size:1.4rem;font-weight:700;color:var(--ink);
+    margin-bottom:4px;
+}
+.psicologos-subtitle{
+    font-size:.88rem;color:var(--ink-40);line-height:1.5;
+}
+
+/* Tab active color */
+.tab-btn[data-tab="psicologos"].active{color:var(--emerald)}
+
+/* States: loading, error, empty */
+.psi-state{
+    display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:12px;
+    padding:48px 16px;text-align:center;
+    color:var(--ink-40);
+}
+.psi-state p{font-size:.92rem;line-height:1.5;margin:0}
+.psi-state-icon{font-size:2rem}
+.psi-state-sub{font-size:.82rem;color:var(--ink-20)}
+
+.psi-spinner{
+    width:32px;height:32px;
+    border:3px solid var(--ink-10);
+    border-top-color:var(--emerald);
+    border-radius:50%;
+    animation:psiSpin .8s linear infinite;
+}
+@keyframes psiSpin{to{transform:rotate(360deg)}}
+
+.psi-retry-btn{
+    margin-top:8px;
+    padding:8px 20px;border-radius:100px;
+    font-size:.84rem;font-weight:600;
+    color:var(--emerald);
+    background:var(--emerald-l);
+    border:1px solid var(--emerald);
+    transition:all var(--dur-fast);
+}
+.psi-retry-btn:hover{
+    background:var(--emerald);color:var(--white);
+}
+
+.psi-cta-link{
+    display:inline-block;margin-top:8px;
+    font-size:.86rem;font-weight:600;
+    color:var(--emerald);
+    transition:color var(--dur-fast);
+}
+.psi-cta-link:hover{color:var(--emerald-d)}
+
+/* Psi Filters Bar */
+.psi-filters{
+    display:flex;gap:10px;margin-bottom:16px;
+    flex-wrap:wrap;
+}
+
+/* Psi Section Footer */
+.psi-section-footer{
+    margin-top:28px;padding:20px 8px;
+    text-align:center;
+    border-top:1px solid var(--ink-10);
+}
+
+/* Cards Grid */
+.psi-available-grid{
+    display:flex;flex-direction:column;gap:12px;
+}
+
+/* Single Card */
+.psi-card{
+    background:var(--white);
+    border:1px solid var(--ink-10);
+    border-radius:var(--r-lg);
+    color:inherit;
+    overflow:hidden;
+    transition:border-color var(--dur-med) var(--ease-out),
+               box-shadow var(--dur-med) var(--ease-out);
+    animation:psiCardIn .4s var(--ease-out) both;
+}
+.psi-card.open{
+    border-color:var(--emerald);
+    box-shadow:var(--shadow-2), 0 0 0 1px var(--emerald);
+}
+
+@keyframes psiCardIn{
+    from{opacity:0;transform:translateY(16px)}
+    to{opacity:1;transform:translateY(0)}
+}
+
+/* Card Header — clickable accordion trigger */
+.psi-card-header{
+    display:flex;align-items:center;gap:10px;
+    padding:20px;
+    cursor:pointer;
+    transition:background var(--dur-fast);
+}
+.psi-card-header:hover{background:var(--ink-05)}
+
+/* Card Top — avatar + info */
+.psi-card-top{display:flex;align-items:center;gap:14px;flex:1;min-width:0}
+
+/* Chevron */
+.psi-card-chevron{
+    width:28px;height:28px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink-20);
+    transition:transform var(--dur-med) var(--ease-spring),color var(--dur-fast);
+}
+.psi-card-chevron svg{width:18px;height:18px}
+.psi-card.open .psi-card-chevron{transform:rotate(180deg);color:var(--ink-70)}
+
+/* Avatar */
+.psi-card-avatar{
+    width:64px;height:64px;border-radius:50%;
+    object-fit:cover;flex-shrink:0;
+    background:var(--ink-05);
+}
+.psi-card-avatar-fallback{
+    width:64px;height:64px;border-radius:50%;flex-shrink:0;
+    background:var(--ink-05);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink-20);
+}
+.psi-card-avatar-fallback svg{width:30px;height:30px}
+
+/* Body */
+.psi-card-body{flex:1;min-width:0}
+
+.psi-card-name{
+    font-family:var(--f-display);
+    font-size:1rem;font-weight:700;
+    line-height:1.3;color:var(--ink);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+
+.psi-card-crp{
+    display:inline-block;
+    font-size:.75rem;font-weight:600;
+    color:var(--ink-40);
+    margin-top:2px;
+}
+
+.psi-card-status{
+    display:flex;align-items:center;gap:6px;
+    font-size:.75rem;font-weight:600;
+    color:#16a34a;
+    margin-top:4px;
+}
+.psi-card-status-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:#16a34a;
+    animation:breathe 2s ease-in-out infinite;
+}
+@keyframes breathe{
+    0%,100%{opacity:1;transform:scale(1)}
+    50%{opacity:.5;transform:scale(.85)}
+}
+
+/* Expandable area */
+.psi-card-expand{
+    max-height:0;overflow:hidden;
+    transition:max-height .55s var(--ease-out);
+}
+.psi-card.open .psi-card-expand{max-height:800px}
+.psi-card-expand-inner{
+    padding:0 20px 20px;
+    display:flex;flex-direction:column;gap:12px;
+}
+
+/* Abordagem detail */
+.psi-card-detail{
+    font-size:.82rem;color:var(--ink-70);
+}
+.psi-card-detail-label{
+    font-weight:600;color:var(--ink-40);
+    text-transform:uppercase;letter-spacing:.5px;
+    font-size:.75rem;
+}
+.psi-card-detail-value{
+    display:inline-block;
+    padding:3px 12px;border-radius:100px;
+    background:var(--emerald-l);color:var(--emerald-d);
+    font-size:.8rem;font-weight:600;
+    margin-left:4px;
+}
+
+/* Detail text (atendimento, especialidade, valor) */
+.psi-card-detail-text{
+    font-size:.82rem;color:var(--ink-70);
+    font-weight:500;
+}
+/* Full description inside expand */
+.psi-card-detail-desc{
+    font-size:.82rem;color:var(--ink-40);
+    line-height:1.5;
+    margin:0;
+}
+
+/* Action Buttons */
+.psi-card-actions{display:flex;gap:8px}
+
+.psi-card-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    flex:1;padding:10px 14px;
+    border-radius:var(--r-md);
+    font-size:.82rem;font-weight:700;
+    text-decoration:none;
+    transition:all var(--dur-fast) var(--ease-out);
+    cursor:pointer;line-height:1.2;
+}
+.psi-card-btn svg{width:16px;height:16px;flex-shrink:0}
+
+.psi-card-btn-wpp{
+    background:var(--wpp);color:var(--white);
+    box-shadow:0 2px 8px rgba(37,211,102,.25);
+}
+.psi-card-btn-wpp:hover{
+    background:var(--wpp-d);
+    transform:translateY(-1px);
+    box-shadow:0 4px 12px rgba(37,211,102,.35);
+}
+.psi-card-btn-wpp:active{transform:translateY(0)}
+
+.psi-card-btn-acessivel{
+    background:transparent;
+    color:var(--emerald);
+    border:2px solid var(--emerald);
+}
+.psi-card-btn-acessivel:hover{
+    background:var(--emerald-l);
+    transform:translateY(-1px);
+}
+.psi-card-btn-acessivel:active{transform:translateY(0)}
+
+.psi-card-btn-site{
+    width:100%;
+    background:var(--ink-05);
+    color:var(--ink-40);
+    border:1.5px dashed var(--ink-20);
+    cursor:not-allowed;
+    opacity:.7;
+}
+.psi-card-btn-site:hover{
+    transform:none;
+    background:var(--ink-05);
+}
+
+/* Footer CTA */
+.psi-available-footer{
+    margin-top:24px;text-align:center;
+}
+.psi-cta-btn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:12px 24px;border-radius:100px;
+    font-size:.88rem;font-weight:600;
+    color:var(--white);
+    background:var(--emerald);
+    transition:all var(--dur-fast);
+    box-shadow:0 4px 16px rgba(47,111,100,.25);
+}
+.psi-cta-btn svg{width:18px;height:18px}
+.psi-cta-btn:hover{
+    background:var(--emerald-d);
+    transform:translateY(-2px);
+    box-shadow:0 6px 20px rgba(47,111,100,.35);
+}
+.psi-cta-btn:active{transform:translateY(0)}
+
+/* Responsive — Psicologos */
+@media(max-width:600px){
+    .psicologos-section{padding:12px 10px 32px}
+    .psicologos-header{margin-bottom:14px}
+    .psicologos-title{font-size:1.1rem}
+    .psicologos-subtitle{font-size:.8rem}
+    .psi-state{padding:32px 12px}
+    .psi-state p{font-size:.85rem}
+    .psi-state-icon{font-size:1.6rem}
+    .psi-available-grid{gap:10px}
+    .psi-card{border-radius:var(--r-md)}
+    .psi-card-header{padding:14px;gap:8px}
+    .psi-card-top{gap:10px}
+    .psi-card-avatar,.psi-card-avatar-fallback{width:48px;height:48px}
+    .psi-card-avatar-fallback svg{width:24px;height:24px}
+    .psi-card-name{font-size:.88rem;white-space:normal;-webkit-line-clamp:2;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden}
+    .psi-card-crp{font-size:.7rem}
+    .psi-card-status{font-size:.7rem;margin-top:2px}
+    .psi-card-chevron{width:24px;height:24px}
+    .psi-card-chevron svg{width:16px;height:16px}
+    .psi-card-expand-inner{padding:0 14px 14px;gap:10px}
+    .psi-card-detail-value{font-size:.75rem;padding:2px 10px}
+    .psi-card-detail-desc{font-size:.78rem}
+    .psi-card-actions{flex-direction:column}
+    .psi-card-btn{font-size:.8rem;padding:9px 12px}
+    .psi-available-footer{margin-top:16px}
+    .psi-cta-btn{padding:10px 18px;font-size:.82rem;width:100%;justify-content:center}
+    .psi-retry-btn{font-size:.8rem;padding:7px 16px}
+}
+
+/* Very small screens (< 380px) — icon-only tabs */
+@media(max-width:380px){
+    .tab-btn{padding:7px 10px}
+    .tab-btn .tab-icon{width:18px;height:18px}
+    .tab-label-short{display:none !important}
+    .topbar-logo{font-size:.88rem}
+    .topbar-btn{width:34px;height:34px}
+    .topbar-btn svg{width:18px;height:18px}
+    .psi-card-header{padding:10px;gap:6px}
+    .psi-card-avatar,.psi-card-avatar-fallback{width:40px;height:40px}
+    .psi-card-avatar-fallback svg{width:20px;height:20px}
+    .psi-card-name{font-size:.84rem}
+    .psi-card-expand-inner{padding:0 10px 10px;gap:8px}
+    .psi-card-btn{font-size:.75rem;padding:8px 10px}
+    .psi-cta-btn{font-size:.78rem;padding:9px 14px}
+    #heroSVG{height:320px}
 }

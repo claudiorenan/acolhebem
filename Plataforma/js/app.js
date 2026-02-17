@@ -123,7 +123,7 @@ const ContentFilter = {
 class AcolheBemApp {
     constructor() {
         this.gender = 'women'; // default tab
-        this.currentTab = 'women'; // tracks active view: women | men | community
+        this.currentTab = 'women'; // tracks active view: women | men | community | psicologos
         this.data = TOPICS_DATA[this.gender];
         this.currentUser = null;
         this.currentProfile = null;
@@ -136,6 +136,7 @@ class AcolheBemApp {
         this._dbTopicsMap = {};
         this._currentCategoryData = null;
         this._backToTab = null;
+        this.psiAvailableFetched = false;
         this.init();
     }
 
@@ -183,7 +184,7 @@ class AcolheBemApp {
         window.addEventListener('resize', () => {
             clearTimeout(this._resizeTimer);
             this._resizeTimer = setTimeout(() => {
-                if (this.data && this.currentTab !== 'community') this.renderHeroViz();
+                if (this.data && this.currentTab !== 'community' && this.currentTab !== 'psicologos') this.renderHeroViz();
             }, 200);
         });
 
@@ -201,6 +202,9 @@ class AcolheBemApp {
 
         // ---- ADMIN UI ----
         this.initAdmin();
+
+        // ---- PSICOLOGOS UI ----
+        this.initPsicologos();
 
         // load default tab (women)
         this.applyTheme();
@@ -664,6 +668,7 @@ class AcolheBemApp {
         // Filters
         this.$('filterGender').addEventListener('change', () => this.handleFilterChange());
         this.$('filterAge').addEventListener('change', () => this.handleFilterChange());
+
     }
 
     updateFeedComposerVisibility() {
@@ -791,7 +796,7 @@ class AcolheBemApp {
             avatarHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
             nameHTML = `<span class="feed-post-name">${authorName}</span>`;
         } else if (isAnon && isOwn) {
-            authorName = post.author?.name || 'Voce';
+            authorName = (post.author?.name || 'Voce').split(' ')[0];
             authorPhoto = post.author?.photo_url;
             initial = authorName[0].toUpperCase();
             avatarHTML = authorPhoto
@@ -799,7 +804,7 @@ class AcolheBemApp {
                 : `<span class="avatar-initial">${initial}</span>`;
             nameHTML = `<span class="feed-post-name">${this.escapeHTML(authorName)}</span> <span class="anon-label">(anonimo)</span>`;
         } else {
-            authorName = post.author?.name || 'Usuario';
+            authorName = (post.author?.name || 'Usuario').split(' ')[0];
             authorPhoto = post.author?.photo_url;
             initial = authorName[0].toUpperCase();
             avatarHTML = authorPhoto
@@ -941,7 +946,7 @@ class AcolheBemApp {
             avatarHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
             displayName = name;
         } else if (isAnon && isOwn) {
-            name = reply.author?.name || 'Voce';
+            name = (reply.author?.name || 'Voce').split(' ')[0];
             photo = reply.author?.photo_url;
             initial = name[0].toUpperCase();
             avatarHTML = photo
@@ -949,7 +954,7 @@ class AcolheBemApp {
                 : `<span class="avatar-initial">${initial}</span>`;
             displayName = `${this.escapeHTML(name)} <span class="anon-label">(anonimo)</span>`;
         } else {
-            name = reply.author?.name || 'Usuario';
+            name = (reply.author?.name || 'Usuario').split(' ')[0];
             photo = reply.author?.photo_url;
             initial = name[0].toUpperCase();
             avatarHTML = photo
@@ -1040,9 +1045,14 @@ class AcolheBemApp {
         });
 
         if (tab === 'community') {
+            this.hidePsicologos();
             this.showCommunity();
+        } else if (tab === 'psicologos') {
+            this.hideCommunity();
+            this.showPsicologos();
         } else {
             this.hideCommunity();
+            this.hidePsicologos();
             if (this.gender !== tab) {
                 this.gender = tab;
                 this.data = TOPICS_DATA[tab];
@@ -1069,6 +1079,183 @@ class AcolheBemApp {
     hideCommunity() {
         this.$('mainBody').style.display = '';
         this.$('communitySection').style.display = 'none';
+    }
+
+    // ========================================
+    //  PSICOLOGOS TAB
+    // ========================================
+    showPsicologos() {
+        this.$('mainBody').style.display = 'none';
+        this.$('communitySection').style.display = 'none';
+        this.$('psicologosSection').style.display = '';
+        this.applyTheme();
+
+        if (!this.psiAvailableFetched) {
+            this.loadPsiAvailable();
+        }
+    }
+
+    hidePsicologos() {
+        this.$('psicologosSection').style.display = 'none';
+    }
+
+    async loadPsiAvailable() {
+        const loadingEl = this.$('psiAvailableLoading');
+        const errorEl = this.$('psiAvailableError');
+        const emptyEl = this.$('psiAvailableEmpty');
+        const gridEl = this.$('psiAvailableGrid');
+
+        // Show loading, hide others
+        loadingEl.style.display = '';
+        errorEl.style.display = 'none';
+        emptyEl.style.display = 'none';
+        gridEl.style.display = 'none';
+
+        try {
+            const SUPABASE_URL = window.supabaseClient?.supabaseUrl || 'https://ynsxfifbbqhstlhuilzg.supabase.co';
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/psi-available`);
+
+            if (!res.ok) throw new Error('Fetch failed');
+
+            const data = await res.json();
+            loadingEl.style.display = 'none';
+
+            if (!data.psychologists || data.psychologists.length === 0) {
+                emptyEl.style.display = '';
+            } else {
+                this.renderPsiAvailableCards(data.psychologists);
+                gridEl.style.display = '';
+            }
+
+            this.psiAvailableFetched = true;
+        } catch (err) {
+            console.error('psi-available fetch error:', err);
+            loadingEl.style.display = 'none';
+            errorEl.style.display = '';
+        }
+    }
+
+    renderPsiAvailableCards(psychologists) {
+        const grid = this.$('psiAvailableGrid');
+        grid.innerHTML = '';
+
+        psychologists.forEach((psi, i) => {
+            const card = document.createElement('div');
+            card.className = 'psi-card';
+            card.style.animationDelay = `${i * 0.06}s`;
+
+            const profileUrl = this.escapeHTML(psi.profileUrl);
+            const nameEsc = this.escapeHTML(psi.name);
+            const wppUrl = psi.whatsappUrl ? this.escapeHTML(psi.whatsappUrl) : profileUrl;
+
+            const photoHtml = psi.photo
+                ? `<img src="${this.escapeHTML(psi.photo)}" alt="${nameEsc}" class="psi-card-avatar" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                : '';
+
+            const fallbackHtml = `<div class="psi-card-avatar-fallback" ${psi.photo ? 'style="display:none"' : ''}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>`;
+
+            const crpHtml = psi.crp ? `<span class="psi-card-crp">CRP ${this.escapeHTML(psi.crp)}</span>` : '';
+
+            const abordagemHtml = psi.abordagem
+                ? `<div class="psi-card-detail"><span class="psi-card-detail-label">Abordagem:</span> <span class="psi-card-detail-value">${this.escapeHTML(psi.abordagem)}</span></div>`
+                : '';
+
+            const atendimentoHtml = psi.atendimento
+                ? `<div class="psi-card-detail"><span class="psi-card-detail-label">Atendimento:</span> <span class="psi-card-detail-text">${this.escapeHTML(psi.atendimento)}</span></div>`
+                : '';
+
+            const especialidadeHtml = psi.especialidade
+                ? `<div class="psi-card-detail"><span class="psi-card-detail-label">Especialidade:</span> <span class="psi-card-detail-text">${this.escapeHTML(psi.especialidade)}</span></div>`
+                : '';
+
+            const descHtml = psi.description
+                ? `<p class="psi-card-detail-desc">${this.escapeHTML(psi.description)}</p>`
+                : '';
+
+            card.innerHTML = `
+                <div class="psi-card-header" role="button" tabindex="0" aria-expanded="false">
+                    <div class="psi-card-top">
+                        ${photoHtml}
+                        ${fallbackHtml}
+                        <div class="psi-card-body">
+                            <div class="psi-card-name">Psi. ${nameEsc}</div>
+                            ${crpHtml}
+                            <div class="psi-card-status">
+                                <span class="psi-card-status-dot"></span>
+                                Ativo
+                            </div>
+                        </div>
+                    </div>
+                    <div class="psi-card-chevron">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                </div>
+                <div class="psi-card-expand">
+                    <div class="psi-card-expand-inner">
+                        ${abordagemHtml}
+                        ${atendimentoHtml}
+                        ${especialidadeHtml}
+                        ${descHtml}
+                        <div class="psi-card-actions">
+                            <a href="${wppUrl}" target="_blank" rel="noopener noreferrer" class="psi-card-btn psi-card-btn-wpp" onclick="event.stopPropagation()">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                WhatsApp
+                            </a>
+                            <a href="${profileUrl}" target="_blank" rel="noopener noreferrer" class="psi-card-btn psi-card-btn-acessivel" onclick="event.stopPropagation()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                                Terapia Acessível
+                            </a>
+                        </div>
+                        <button class="psi-card-btn psi-card-btn-site" disabled onclick="event.stopPropagation()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                            Ver Site (Psicólogo sem site)
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Accordion toggle
+            const header = card.querySelector('.psi-card-header');
+            const toggleCard = () => {
+                const isOpen = card.classList.contains('open');
+                // Close all other cards
+                grid.querySelectorAll('.psi-card.open').forEach(c => {
+                    if (c !== card) {
+                        c.classList.remove('open');
+                        c.querySelector('.psi-card-header')?.setAttribute('aria-expanded', 'false');
+                    }
+                });
+                card.classList.toggle('open', !isOpen);
+                header.setAttribute('aria-expanded', String(!isOpen));
+            };
+            header.addEventListener('click', toggleCard);
+            header.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleCard();
+                }
+            });
+
+            grid.appendChild(card);
+        });
+    }
+
+    initPsicologos() {
+        this.$('psiRetryBtn').addEventListener('click', () => {
+            this.psiAvailableFetched = false;
+            this.loadPsiAvailable();
+        });
+
+        // Hide photos toggle for psi cards
+        this.$('hidePsiPhotosBtn').addEventListener('click', () => {
+            const grid = this.$('psiAvailableGrid');
+            const btn = this.$('hidePsiPhotosBtn');
+            const hidden = grid.classList.toggle('hide-avatars');
+            btn.classList.toggle('active', hidden);
+            btn.querySelector('span').textContent = hidden ? 'Mostrar fotos' : 'Ocultar fotos';
+        });
     }
 
     showTopicsListing() {
@@ -1268,8 +1455,8 @@ class AcolheBemApp {
     applyTheme() {
         const screen = this.$('mainScreen');
         screen.classList.remove('theme-women', 'theme-men');
-        if (this.currentTab === 'community') {
-            // neutral theme for community
+        if (this.currentTab === 'community' || this.currentTab === 'psicologos') {
+            // neutral theme for community and psicologos
         } else {
             screen.classList.add(this.gender === 'women' ? 'theme-women' : 'theme-men');
         }
@@ -1578,6 +1765,20 @@ class AcolheBemApp {
         const cats = this.data.categories;
         const accent = this.data.accentColor;
         const isFem = this.gender === 'women';
+        const mob = W < 480;
+
+        // Mobile-scaled dimensions
+        const hubR1 = mob ? 38 : 54, hubR2 = mob ? 33 : 48;
+        const pulseR0 = mob ? 35 : 50, pulseR1 = mob ? 75 : 110;
+        const hubTxtY = mob ? 52 : 76, hubTxtSz = mob ? 10 : 14;
+        const nR1 = mob ? 46 : 68, nR2 = mob ? 38 : 56, nR3 = mob ? 32 : 48;
+        const emoSz = mob ? 22 : 34;
+        const bdgCx = mob ? 26 : 38, bdgCy = mob ? -26 : -38, bdgR = mob ? 13 : 18, bdgSz = mob ? 11 : 16;
+        const lblY = mob ? 42 : 62, lblH = mob ? 22 : 30, lblRx = mob ? 11 : 15;
+        const lblSz = mob ? 10 : 13, lblTxtY = mob ? 53 : 77;
+        const subY = mob ? 68 : 102, subSz = mob ? 9 : 12;
+        const dotR = mob ? 3 : 4.5, sW = mob ? 2 : 2.5;
+        const charW = mob ? 5.5 : 7.5, charPad = mob ? 18 : 28;
 
         const svg = d3.select(svgEl).attr('width', W).attr('height', H).attr('viewBox', `0 0 ${W} ${H}`);
 
@@ -1609,8 +1810,8 @@ class AcolheBemApp {
         for (let y = 0; y < H; y += 40) grid.append('line').attr('x1',0).attr('y1',y).attr('x2',W).attr('y2',y).attr('stroke','#666');
 
         // node positions
-        const rx = Math.min(W * .40, 480);
-        const ry = Math.min(H * .35, 280);
+        const rx = Math.min(W * (mob ? .36 : .40), 480);
+        const ry = Math.min(H * (mob ? .30 : .35), 280);
         const nodes = cats.map((c, i) => {
             const a = -Math.PI / 2 + (i / cats.length) * Math.PI * 2;
             return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a), c };
@@ -1626,7 +1827,7 @@ class AcolheBemApp {
 
             const line = lineG.append('line')
                 .attr('x1', cx).attr('y1', cy).attr('x2', cx).attr('y2', cy)
-                .attr('stroke', `url(#lg-${i})`).attr('stroke-width', 2.5)
+                .attr('stroke', `url(#lg-${i})`).attr('stroke-width', sW)
                 .attr('stroke-dasharray','8 5').attr('stroke-linecap','round');
 
             line.transition().duration(900).delay(200 + i * 100)
@@ -1634,7 +1835,7 @@ class AcolheBemApp {
 
             // flowing dot
             const dot = lineG.append('circle')
-                .attr('cx', cx).attr('cy', cy).attr('r', 4.5)
+                .attr('cx', cx).attr('cy', cy).attr('r', dotR)
                 .attr('fill', n.c.color).attr('opacity', 0);
 
             const animateDot = () => {
@@ -1651,26 +1852,26 @@ class AcolheBemApp {
 
         // pulse rings
         for (let i = 0; i < 3; i++) {
-            hub.append('circle').attr('r', 50).attr('fill','none')
+            hub.append('circle').attr('r', pulseR0).attr('fill','none')
                 .attr('stroke', accent).attr('stroke-width', 1.5).attr('opacity', 0)
                 .each(function() {
                     const el = d3.select(this);
                     const pulse = () => {
-                        el.attr('r', 50).attr('opacity', .4)
+                        el.attr('r', pulseR0).attr('opacity', .4)
                             .transition().duration(2800).ease(d3.easeQuadOut)
-                            .attr('r', 110).attr('opacity', 0)
+                            .attr('r', pulseR1).attr('opacity', 0)
                             .on('end', pulse);
                     };
                     setTimeout(pulse, i * 900);
                 });
         }
 
-        hub.append('circle').attr('r', 54).attr('fill','white')
-            .attr('stroke', accent).attr('stroke-width', 2.5);
-        hub.append('circle').attr('r', 48).attr('fill', isFem ? '#fff0f6' : '#e7f5ff');
+        hub.append('circle').attr('r', hubR1).attr('fill','white')
+            .attr('stroke', accent).attr('stroke-width', sW);
+        hub.append('circle').attr('r', hubR2).attr('fill', isFem ? '#fff0f6' : '#e7f5ff');
 
         // SVG character illustration
-        const person = hub.append('g').attr('transform','translate(0,-4)');
+        const person = hub.append('g').attr('transform', mob ? 'translate(0,-3) scale(0.7)' : 'translate(0,-4)');
         if (isFem) {
             person.append('ellipse').attr('cx',0).attr('cy',-8).attr('rx',14).attr('ry',16).attr('fill','#5c3d2e');
             person.append('path').attr('d','M-14,-8 Q-16,10 -12,18 Q-10,22 -8,18 Q-8,2 -10,-4Z').attr('fill','#5c3d2e');
@@ -1709,8 +1910,8 @@ class AcolheBemApp {
             person.append('circle').attr('cx',18).attr('cy',22).attr('r',3).attr('fill','#fcd5b4');
         }
 
-        hub.append('text').attr('text-anchor','middle').attr('y', 76)
-            .attr('font-size', 14).attr('font-weight', 600).attr('fill', accent)
+        hub.append('text').attr('text-anchor','middle').attr('y', hubTxtY)
+            .attr('font-size', hubTxtSz).attr('font-weight', 600).attr('fill', accent)
             .attr('font-family','DM Sans, sans-serif').text('AcolheBem');
 
         hub.transition().duration(500).style('opacity', 1);
@@ -1721,33 +1922,34 @@ class AcolheBemApp {
                 .attr('transform', `translate(${n.x},${n.y})`)
                 .style('opacity', 0).style('cursor','pointer');
 
-            g.append('circle').attr('r', 68).attr('fill', n.c.color).attr('opacity', .07)
+            g.append('circle').attr('r', nR1).attr('fill', n.c.color).attr('opacity', .07)
                 .attr('filter', `url(#glow-${n.c.id})`);
-            g.append('circle').attr('r', 56).attr('fill','white')
-                .attr('stroke', n.c.color).attr('stroke-width', 3)
+            g.append('circle').attr('r', nR2).attr('fill','white')
+                .attr('stroke', n.c.color).attr('stroke-width', mob ? 2 : 3)
                 .attr('filter', `url(#glow-${n.c.id})`);
-            g.append('circle').attr('r', 48).attr('fill', n.c.colorLight);
+            g.append('circle').attr('r', nR3).attr('fill', n.c.colorLight);
 
             g.append('text').attr('text-anchor','middle').attr('dominant-baseline','central')
-                .attr('font-size', 34).attr('y', -2).text(n.c.icon);
+                .attr('font-size', emoSz).attr('y', mob ? -1 : -2).text(n.c.icon);
 
-            g.append('circle').attr('cx', 38).attr('cy', -38).attr('r', 18)
-                .attr('fill', n.c.color).attr('stroke','white').attr('stroke-width', 2.5);
-            g.append('text').attr('x', 38).attr('y', -38)
+            g.append('circle').attr('cx', bdgCx).attr('cy', bdgCy).attr('r', bdgR)
+                .attr('fill', n.c.color).attr('stroke','white').attr('stroke-width', sW);
+            g.append('text').attr('x', bdgCx).attr('y', bdgCy)
                 .attr('text-anchor','middle').attr('dominant-baseline','central')
-                .attr('font-size', 16).attr('font-weight', 800).attr('fill','white').text(n.c.id);
+                .attr('font-size', bdgSz).attr('font-weight', 800).attr('fill','white').text(n.c.id);
 
-            const lbl = n.c.title.length > 28 ? n.c.title.slice(0,27)+'…' : n.c.title;
-            const tw = lbl.length * 7.5 + 28;
-            g.append('rect').attr('x', -tw/2).attr('y', 62).attr('width', tw).attr('height', 30)
-                .attr('rx', 15).attr('fill','white').attr('stroke', n.c.color).attr('stroke-width', 1.5).attr('opacity', .95);
-            g.append('text').attr('y', 77).attr('text-anchor','middle')
+            const maxLbl = mob ? 18 : 28;
+            const lbl = n.c.title.length > maxLbl ? n.c.title.slice(0, maxLbl - 1)+'…' : n.c.title;
+            const tw = lbl.length * charW + charPad;
+            g.append('rect').attr('x', -tw/2).attr('y', lblY).attr('width', tw).attr('height', lblH)
+                .attr('rx', lblRx).attr('fill','white').attr('stroke', n.c.color).attr('stroke-width', 1.5).attr('opacity', .95);
+            g.append('text').attr('y', lblTxtY).attr('text-anchor','middle')
                 .attr('dominant-baseline','central')
-                .attr('font-size', 13).attr('font-weight', 600).attr('fill', '#333')
+                .attr('font-size', lblSz).attr('font-weight', 600).attr('fill', '#333')
                 .attr('font-family','DM Sans, sans-serif').text(lbl);
 
-            g.append('text').attr('y', 102).attr('text-anchor','middle')
-                .attr('font-size', 12).attr('fill','#888')
+            g.append('text').attr('y', subY).attr('text-anchor','middle')
+                .attr('font-size', subSz).attr('fill','#888')
                 .attr('font-family','DM Sans, sans-serif')
                 .text(n.c.subtopics.length + ' subtemas');
 
@@ -1826,6 +2028,7 @@ class AcolheBemApp {
         this._previousView = this.currentTab;
         this.$('mainBody').style.display = 'none';
         this.$('communitySection').style.display = 'none';
+        this.$('psicologosSection').style.display = 'none';
         this.$('adminSection').style.display = '';
         this._adminPostsOffset = 0;
         this.$('adminPostsList').innerHTML = '';
@@ -1836,6 +2039,8 @@ class AcolheBemApp {
         this.$('adminSection').style.display = 'none';
         if (this._previousView === 'community') {
             this.showCommunity();
+        } else if (this._previousView === 'psicologos') {
+            this.showPsicologos();
         } else {
             this.$('mainBody').style.display = '';
         }

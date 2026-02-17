@@ -67,7 +67,8 @@
                             <line x1="24" y1="26" x2="24" y2="40"/>
                             <line x1="18" y1="34" x2="30" y2="34"/>
                         </svg>
-                        <span>Feminino</span>
+                        <span class="tab-label-full">Feminino</span>
+                        <span class="tab-label-short">Fem</span>
                     </button>
                     <button class="tab-btn" data-tab="men" id="tabMen">
                         <svg class="tab-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
@@ -75,7 +76,8 @@
                             <line x1="26" y1="21" x2="38" y2="9"/>
                             <polyline points="30,9 38,9 38,17"/>
                         </svg>
-                        <span>Masculino</span>
+                        <span class="tab-label-full">Masculino</span>
+                        <span class="tab-label-short">Masc</span>
                     </button>
                     <button class="tab-btn" data-tab="community" id="tabCommunity">
                         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -84,7 +86,15 @@
                             <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                         </svg>
-                        <span>Comunidade</span>
+                        <span class="tab-label-full">Comunidade</span>
+                        <span class="tab-label-short">Social</span>
+                    </button>
+                    <button class="tab-btn" data-tab="psicologos" id="tabPsicologos">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        <span class="tab-label-full">Psicologos</span>
+                        <span class="tab-label-short">Psi</span>
                     </button>
                 </nav>
                 <div class="topbar-right">
@@ -233,6 +243,51 @@
                 </div>
             </div>
 
+            <!-- ===== PSICOLOGOS SECTION (toggled by tab) ===== -->
+            <div id="psicologosSection" class="psicologos-section" style="display:none">
+                <div class="psicologos-header">
+                    <h2 class="psicologos-title">Psicologos Ativos</h2>
+                    <p class="psicologos-subtitle">Profissionais cadastrados no Cade Meu Psi</p>
+                </div>
+
+                <!-- Filters -->
+                <div class="psi-filters">
+                    <button class="hide-photos-btn" id="hidePsiPhotosBtn" title="Ocultar fotos">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <span>Ocultar fotos</span>
+                    </button>
+                </div>
+
+                <!-- Loading State -->
+                <div id="psiAvailableLoading" class="psi-state psi-loading">
+                    <div class="psi-spinner"></div>
+                    <p>Buscando psicologos...</p>
+                </div>
+
+                <!-- Error State -->
+                <div id="psiAvailableError" class="psi-state psi-error" style="display:none">
+                    <span class="psi-state-icon">⚠️</span>
+                    <p>Nao foi possivel carregar os psicologos.</p>
+                    <button class="psi-retry-btn" id="psiRetryBtn">Tentar novamente</button>
+                </div>
+
+                <!-- Empty State -->
+                <div id="psiAvailableEmpty" class="psi-state psi-empty" style="display:none">
+                    <span class="psi-state-icon">🕐</span>
+                    <p>Nenhum psicologo encontrado.</p>
+                    <p class="psi-state-sub">Tente novamente mais tarde.</p>
+                </div>
+
+                <!-- Cards Grid -->
+                <div id="psiAvailableGrid" class="psi-available-grid" style="display:none"></div>
+
+                <!-- Footer -->
+                <div class="psi-section-footer">
+                    <p class="gf-brand">AcolheBem.com.br</p>
+                    <p class="gf-tagline">Plataforma de Acolhimento</p>
+                </div>
+            </div>
+
             <!-- ===== ADMIN PANEL (only for admin users) ===== -->
             <div id="adminSection" class="admin-section" style="display:none">
                 <div class="admin-header">
@@ -278,8 +333,8 @@
             <!-- Rodapé -->
             <footer class="groups-footer" id="mainFooter">
                 <div class="gf-inner">
-                    <p>AcolheBem — Você não está sozinho(a)</p>
-                    <p class="gf-small">Clique em "Entrar no grupo" para acessar via WhatsApp</p>
+                    <p class="gf-brand">AcolheBem.com.br</p>
+                    <p class="gf-tagline">Plataforma de Acolhimento</p>
                 </div>
             </footer>
         </section>
