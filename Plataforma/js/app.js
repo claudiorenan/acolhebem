@@ -975,7 +975,7 @@ class AcolheBemApp {
         this.$('communitySection').style.display = 'none';
     }
 
-    async showTopicsListing() {
+    showTopicsListing() {
         this.$('topicsView').style.display = '';
         this.$('topicFeedView').style.display = 'none';
         this.currentTopicId = null;
@@ -984,10 +984,11 @@ class AcolheBemApp {
         const topicsList = this.$('topicsList');
         topicsList.innerHTML = '';
 
-        // Load DB topics to map post counts
-        const dbTopics = await Feed.loadTopics();
-        this._dbTopicsMap = {};
-        dbTopics.forEach(t => { this._dbTopicsMap[t.slug] = t; });
+        // Load DB topics in background (non-blocking)
+        Feed.loadTopics().then(dbTopics => {
+            this._dbTopicsMap = {};
+            dbTopics.forEach(t => { this._dbTopicsMap[t.slug] = t; });
+        });
 
         // Render Feminino section
         const femLabel = document.createElement('div');
@@ -1026,6 +1027,7 @@ class AcolheBemApp {
         if (!this.currentUser) page.classList.add('tp-locked');
 
         const lockIcon = !this.currentUser ? '<span class="tp-lock">🔒</span>' : '';
+        const ctaText = !this.currentUser ? 'entre para acessar' : 'clique para entrar';
 
         page.innerHTML = `
             <div class="tp-header" style="background:${cat.colorLight}">
@@ -1033,6 +1035,7 @@ class AcolheBemApp {
                 <h3 class="tp-title">${this.escapeHTML(cat.title)}</h3>
                 ${lockIcon}
             </div>
+            <div class="tp-cta">${ctaText}</div>
         `;
 
         page.addEventListener('click', async () => {

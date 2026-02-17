@@ -921,6 +921,11 @@ img,svg{display:block}
 .tp-lock{
     font-size:.7rem;margin-top:4px;
 }
+.tp-cta{
+    font-size:.68rem;font-weight:600;color:var(--emerald);
+    text-align:center;padding:0 8px 10px;
+}
+.tp-locked .tp-cta{color:var(--ink-40)}
 .tp-header{
     padding:16px 10px 10px;
     text-align:center;
