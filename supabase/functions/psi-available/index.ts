@@ -104,81 +104,88 @@ function parseCardsFromListing(html: string): Psychologist[] {
   return results;
 }
 
-/** Enrich available psychologists by fetching their individual profile pages */
-async function enrichAvailable(psychologists: Psychologist[]): Promise<void> {
-  const available = psychologists.filter((p) => p.available);
-  if (available.length === 0) return;
+/** Enrich a single psychologist from their individual profile page */
+async function enrichOne(psi: Psychologist): Promise<void> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(psi.profileUrl, {
+      headers: { "User-Agent": BROWSER_UA, Accept: "text/html" },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return;
+    const html = await res.text();
 
-  console.log(`Enriching ${available.length} available psychologists from profile pages`);
+    // Abordagem
+    const aboMatch = html.match(/Abordagem[^<]*<\/[^>]+>\s*<[^>]+>\s*([^<]+)/i);
+    if (aboMatch) psi.abordagem = aboMatch[1].trim();
 
-  const results = await Promise.allSettled(
-    available.map(async (psi) => {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 10000);
-      try {
-        const res = await fetch(psi.profileUrl, {
-          headers: { "User-Agent": BROWSER_UA, Accept: "text/html" },
-          signal: ctrl.signal,
-        });
-        clearTimeout(timer);
-        if (!res.ok) return;
-        const html = await res.text();
+    // Atendimento
+    const ateMatch = html.match(/Atendimento[^<]*<\/[^>]+>\s*<[^>]+>\s*([^<]+)/i);
+    if (ateMatch) psi.atendimento = ateMatch[1].trim();
 
-        // Abordagem
-        const aboMatch = html.match(/Abordagem[^<]*<\/[^>]+>\s*<[^>]+>\s*([^<]+)/i);
-        if (aboMatch) psi.abordagem = aboMatch[1].trim();
+    // Especialidade
+    const espMatch = html.match(/Especialidade[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
+    if (espMatch) {
+      psi.especialidade = espMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 300);
+    }
 
-        // Atendimento
-        const ateMatch = html.match(/Atendimento[^<]*<\/[^>]+>\s*<[^>]+>\s*([^<]+)/i);
-        if (ateMatch) psi.atendimento = ateMatch[1].trim();
+    // Full description (from profile - overrides listing desc)
+    const descMatch = html.match(/Sobre mim[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
+    if (descMatch) {
+      psi.description = descMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 500);
+    }
 
-        // Especialidade
-        const espMatch = html.match(/Especialidade[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
-        if (espMatch) {
-          psi.especialidade = espMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 300);
-        }
+    // Availability hours
+    const timeMatch = html.match(/(\d+)h\s*(\d+)?\s*min\s*restante/i);
+    if (timeMatch) {
+      const h = parseInt(timeMatch[1], 10);
+      const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      psi.hoursRemaining = h + m / 60;
+    }
+    if (!psi.available && /disponibilidade\s+de\s+agenda/i.test(html)) {
+      psi.available = true;
+    }
 
-        // Full description
-        const descMatch = html.match(/Sobre mim[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
-        if (descMatch) {
-          psi.description = descMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 500);
-        }
-
-        // Availability hours
-        const timeMatch = html.match(/(\d+)h\s*(\d+)?\s*min\s*restante/i);
-        if (timeMatch) {
-          const h = parseInt(timeMatch[1], 10);
-          const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
-          psi.hoursRemaining = h + m / 60;
-        }
-
-        // WhatsApp number (personal - from wPsy field)
-        const wPsyMatch = html.match(/&quot;wPsy&quot;:&quot;[^&]*wa\.me[^&]*?(\d{10,15})/);
-        if (wPsyMatch) {
-          psi.whatsappNumber = wPsyMatch[1];
-        } else {
-          // Fallback: phone field
-          const phoneMatch = html.match(/&quot;phone&quot;:&quot;\((\d{2})\)\s*(\d{4,5})-?(\d{4})&quot;/);
-          if (phoneMatch) {
-            psi.whatsappNumber = `55${phoneMatch[1]}${phoneMatch[2]}${phoneMatch[3]}`;
-          }
-        }
-
-        // WhatsApp URL from profile page (more reliable)
-        const wppMatch = html.match(/href="((?:https:\/\/cademeupsi\.com\.br)?\/whatsapp\/\d+)"/i);
-        if (wppMatch) {
-          psi.whatsappUrl = wppMatch[1].startsWith("http")
-            ? wppMatch[1]
-            : `https://cademeupsi.com.br${wppMatch[1]}`;
-        }
-      } catch {
-        clearTimeout(timer);
+    // WhatsApp number (personal - from wPsy field)
+    const wPsyMatch = html.match(/&quot;wPsy&quot;:&quot;[^&]*wa\.me[^&]*?(\d{10,15})/);
+    if (wPsyMatch) {
+      psi.whatsappNumber = wPsyMatch[1];
+    } else {
+      const phoneMatch = html.match(/&quot;phone&quot;:&quot;\((\d{2})\)\s*(\d{4,5})-?(\d{4})&quot;/);
+      if (phoneMatch) {
+        psi.whatsappNumber = `55${phoneMatch[1]}${phoneMatch[2]}${phoneMatch[3]}`;
       }
-    }),
-  );
+    }
 
-  const enriched = results.filter((r) => r.status === "fulfilled").length;
-  console.log(`Enriched ${enriched}/${available.length} available psychologists`);
+    // WhatsApp URL from profile page
+    const wppMatch = html.match(/href="((?:https:\/\/cademeupsi\.com\.br)?\/whatsapp\/\d+)"/i);
+    if (wppMatch) {
+      psi.whatsappUrl = wppMatch[1].startsWith("http")
+        ? wppMatch[1]
+        : `https://cademeupsi.com.br${wppMatch[1]}`;
+    }
+  } catch {
+    clearTimeout(timer);
+  }
+}
+
+/** Enrich ALL psychologists by fetching their individual profile pages in batches */
+async function enrichAll(psychologists: Psychologist[]): Promise<void> {
+  if (psychologists.length === 0) return;
+
+  const BATCH = 15; // 15 parallel requests at a time
+  let enriched = 0;
+
+  for (let i = 0; i < psychologists.length; i += BATCH) {
+    const batch = psychologists.slice(i, i + BATCH);
+    const results = await Promise.allSettled(batch.map((psi) => enrichOne(psi)));
+    enriched += results.filter((r) => r.status === "fulfilled").length;
+    console.log(`Enriched batch ${Math.floor(i / BATCH) + 1}: ${Math.min(i + BATCH, psychologists.length)}/${psychologists.length}`);
+  }
+
+  console.log(`Enriched ${enriched}/${psychologists.length} psychologists total`);
 }
 
 serve(async (req: Request) => {
@@ -362,10 +369,10 @@ serve(async (req: Request) => {
     console.log(`Parsed ${psychologists.length} psychologists from listing (${psychologists.filter((p) => p.available).length} available)`);
 
     // ============================================================
-    // STEP 5: Enrich available psychologists with profile details
-    //         (WhatsApp personal number, abordagem, etc.)
+    // STEP 5: Enrich ALL psychologists with profile page details
+    //         (WhatsApp personal number, abordagem, especialidade, etc.)
     // ============================================================
-    await enrichAvailable(psychologists);
+    await enrichAll(psychologists);
 
     // Sort: available first, then by name
     psychologists.sort((a, b) => {
