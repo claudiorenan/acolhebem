@@ -1,0 +1,74 @@
+# AIOS Framework Configuration - AcolheBem
+# Generated: 2026-02-16
+
+project:
+  name: AcolheBem
+  description: Plataforma de saúde mental - diretório de psicólogos e triagem inteligente
+  version: 0.1.0
+  language: pt-BR
+
+framework:
+  version: 2.0
+  initialized: true
+  initialized_date: "2026-02-16"
+
+structure:
+  root: .
+  aios_core: .aios-core
+  docs: docs
+  stories: docs/stories
+  prd: docs/prd
+  architecture: docs/architecture
+
+stack:
+  frontend:
+    framework: Next.js 14
+    language: TypeScript
+    ui: React 18
+    styling: Tailwind CSS 3.4
+    icons: Lucide React
+  static_site:
+    languages: [HTML, CSS, JavaScript]
+    server: Python HTTP Proxy
+  testing:
+    e2e: Playwright
+    linting: ESLint
+  build:
+    bundler: Next.js
+    package_manager: npm
+
+agents:
+  default: aios-master
+  available:
+    - aios-master
+    - dev
+    - qa
+    - architect
+    - pm
+    - po
+    - sm
+    - analyst
+    - devops
+    - data-engineer
+    - ux-design-expert
+
+workflows:
+  default: brownfield-fullstack
+  available:
+    - brownfield-fullstack
+    - brownfield-ui
+    - brownfield-service
+
+paths:
+  development:
+    agents: .aios-core/development/agents
+    tasks: .aios-core/development/tasks
+    workflows: .aios-core/development/workflows
+    templates: .aios-core/development/templates
+    checklists: .aios-core/development/checklists
+    data: .aios-core/development/data
+    utils: .aios-core/development/utils
+    scripts: .aios-core/development/scripts
+    rules: .aios-core/development/rules
+  product:
+    templates: .aios-core/product/templates

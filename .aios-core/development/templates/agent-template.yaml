@@ -1,0 +1,44 @@
+# Agent Template
+# Usage: *create agent {name}
+
+metadata:
+  template: agent
+  version: 1.0
+
+structure:
+  agent:
+    name: "{agent_name}"
+    id: "{agent_id}"
+    title: "{agent_title}"
+    icon: "{icon}"
+    whenToUse: "{when_to_use}"
+
+  persona_profile:
+    archetype: "{archetype}"
+    communication:
+      tone: "{tone}"
+      emoji_frequency: low
+      greeting_levels:
+        minimal: "{icon} {id} Agent ready"
+        named: "{icon} {name} ready."
+        archetypal: "{icon} {name} the {archetype} ready!"
+
+  persona:
+    role: "{role}"
+    identity: "{identity}"
+    core_principles:
+      - "{principle_1}"
+      - "{principle_2}"
+
+  commands:
+    - name: help
+      description: "Show available commands"
+    - name: status
+      description: "Show current context"
+    - name: exit
+      description: "Exit agent mode"
+
+  dependencies:
+    tasks: []
+    templates: []
+    data: []

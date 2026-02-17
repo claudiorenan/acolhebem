@@ -1,0 +1,60 @@
+# Product Requirements Document Template - AcolheBem
+# Usage: *create-doc prd
+
+metadata:
+  template: prd
+  version: 1.0
+  project: AcolheBem
+
+structure: |
+  # PRD: {title}
+
+  **Version:** {version}
+  **Date:** {date}
+  **Author:** {author}
+  **Status:** Draft
+
+  ## 1. Overview
+  {overview}
+
+  ## 2. Problem Statement
+  {problem}
+
+  ## 3. Goals & Success Metrics
+  | Goal | Metric | Target |
+  |------|--------|--------|
+  | | | |
+
+  ## 4. User Personas
+  ### Persona 1: {name}
+  - **Perfil:** {profile}
+  - **Necessidades:** {needs}
+  - **Dores:** {pain_points}
+
+  ## 5. Functional Requirements
+  ### 5.1 {feature_1}
+  - **Descrição:** {description}
+  - **Prioridade:** {priority}
+  - **Critérios de Aceitação:**
+    - [ ] {criterion}
+
+  ## 6. Non-Functional Requirements
+  - **Performance:** {performance}
+  - **Segurança:** {security}
+  - **Acessibilidade:** {accessibility}
+
+  ## 7. User Flows
+  {user_flows}
+
+  ## 8. Out of Scope
+  - {out_of_scope_item}
+
+  ## 9. Timeline
+  | Phase | Description | Duration |
+  |-------|-------------|----------|
+  | | | |
+
+  ## 10. Risks & Mitigations
+  | Risk | Impact | Mitigation |
+  |------|--------|------------|
+  | | | |

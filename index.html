@@ -1,0 +1,101 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AcolheBem | Psicólogos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700&family=Fraunces:opsz,wght@9..144,500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="site-header">
+        <div class="brand">
+          <span class="brand-mark">AB</span>
+          <div>
+            <h1>AcolheBem</h1>
+            <p>Encontre psicólogos com escuta acolhedora e perfis verificados.</p>
+          </div>
+        </div>
+        <nav class="header-actions">
+          <a class="ghost-button" href="#/">Listagem</a>
+        </nav>
+      </header>
+
+      <section class="stats" id="stats">
+        <div class="stat-card">
+          <span class="stat-label">Psicólogos cadastrados</span>
+          <strong class="stat-value" id="stat-total">--</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Cidades atendidas</span>
+          <strong class="stat-value" id="stat-cities">--</strong>
+        </div>
+        <div class="stat-card highlight">
+          <span class="stat-label">Destaques Ouro ativos</span>
+          <strong class="stat-value" id="stat-gold">--</strong>
+        </div>
+      </section>
+
+      <section class="filters" id="filters">
+        <div class="filter-group">
+          <label for="search">Busca por nome</label>
+          <input id="search" type="text" placeholder="Digite o nome do profissional" />
+        </div>
+        <div class="filter-group">
+          <label for="city">Cidade</label>
+          <select id="city">
+            <option value="">Todas as cidades</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="approach">Abordagem</label>
+          <input id="approach" type="text" placeholder="Ex.: Psicanálise, TCC" />
+        </div>
+        <div class="filter-group">
+          <label for="services">Serviços</label>
+          <select id="services" multiple></select>
+          <small>Selecione um ou mais serviços</small>
+        </div>
+        <div class="filter-group toggle">
+          <label for="available24">
+            <input id="available24" type="checkbox" />
+            Disponível nas próximas 24h
+          </label>
+        </div>
+        <div class="filter-group actions">
+          <button id="applyFilters" class="primary-button">Aplicar filtros</button>
+          <button id="clearFilters" class="ghost-button">Limpar</button>
+        </div>
+      </section>
+
+      <main>
+        <section id="list-view" class="list-view">
+          <div class="list-meta" id="list-meta">Carregando profissionais...</div>
+          <div class="cards" id="cards"></div>
+          <div class="pagination" id="pagination">
+            <button id="prevPage" class="ghost-button">Anterior</button>
+            <span id="pageInfo">Página --</span>
+            <button id="nextPage" class="ghost-button">Próxima</button>
+          </div>
+        </section>
+
+        <section id="profile-view" class="profile-view" hidden>
+          <button id="backToList" class="ghost-button">Voltar para a listagem</button>
+          <div class="profile-card" id="profile-card"></div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>AcolheBem conecta você ao cuidado psicológico com respeito e acolhimento.</p>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

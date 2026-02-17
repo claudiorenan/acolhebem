@@ -1,0 +1,50 @@
+# User Story Template - AcolheBem
+# Usage: *create-next-story
+
+metadata:
+  template: user-story
+  version: 1.0
+  project: AcolheBem
+
+structure: |
+  # Story {id}: {title}
+
+  **Status:** Draft
+  **Sprint:** {sprint}
+  **Priority:** {priority}
+  **Estimated Points:** {points}
+  **Assigned Agent:** {agent}
+
+  ## User Story
+  Como {persona}, eu quero {ação} para que {benefício}.
+
+  ## Acceptance Criteria
+  - [ ] {criterion_1}
+  - [ ] {criterion_2}
+  - [ ] {criterion_3}
+
+  ## Technical Notes
+  {technical_notes}
+
+  ## Tasks
+  - [ ] {task_1}
+  - [ ] {task_2}
+  - [ ] {task_3}
+
+  ## File List
+  | File | Action | Description |
+  |------|--------|-------------|
+  | | | |
+
+  ## Testing
+  - [ ] Unit tests passing
+  - [ ] E2E tests passing
+  - [ ] Lint passing
+  - [ ] Typecheck passing
+
+  ## Definition of Done
+  - [ ] All acceptance criteria met
+  - [ ] Code reviewed
+  - [ ] Tests written and passing
+  - [ ] Documentation updated
+  - [ ] No regressions introduced
