@@ -1024,33 +1024,18 @@ class AcolheBemApp {
 
         const page = document.createElement('div');
         page.className = 'topic-page';
-        page.style.setProperty('--topic-color', cat.color);
-        page.style.setProperty('--topic-color-light', cat.colorLight);
-
-        const tags = cat.subtopics.map(s =>
-            `<span class="tp-tag"><span class="tp-tag-emoji">${s.emoji}</span>${this.escapeHTML(s.name)}</span>`
-        ).join('');
 
         page.innerHTML = `
             <div class="tp-header" style="background:${cat.colorLight}">
                 <span class="tp-emoji">${cat.icon}</span>
                 <h3 class="tp-title">${this.escapeHTML(cat.title)}</h3>
-                <p class="tp-desc">${this.escapeHTML(cat.description)}</p>
             </div>
             <div class="tp-body">
-                <p class="tp-label">Temas abordados</p>
-                <div class="tp-tags">${tags}</div>
-                <div class="tp-footer">
-                    <span class="tp-posts">${postCount} ${postCount === 1 ? 'publicacao' : 'publicacoes'}</span>
-                    <button class="tp-enter-btn" style="background:${cat.color}">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        Entrar na comunidade
-                    </button>
-                </div>
+                <span class="tp-posts">${postCount} posts</span>
             </div>
         `;
 
-        page.querySelector('.tp-enter-btn').addEventListener('click', async () => {
+        page.addEventListener('click', async () => {
             let topicData;
             if (dbTopic) {
                 topicData = dbTopic;
