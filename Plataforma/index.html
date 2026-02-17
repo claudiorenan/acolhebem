@@ -6,6 +6,7 @@
     <title>AcolheBem — Plataforma de Acolhimento em Saúde Mental</title>
     <meta name="description" content="Encontre grupos de acolhimento em saúde mental. Espaços seguros para compartilhar, acolher e crescer.">
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
@@ -16,116 +17,214 @@
         <!-- ===== CANVAS DE PARTICULAS ===== -->
         <canvas id="particleCanvas"></canvas>
 
-        <!-- ===== TELA 1: BEM-VINDO ===== -->
-        <section id="welcome-screen" class="screen active">
-            <div class="welcome-inner">
-                <div class="welcome-hero">
-                    <div class="hero-badge">plataforma de acolhimento</div>
-                    <h1 class="hero-title">
-                        <span class="title-line">Acolhe</span>
-                        <span class="title-line title-accent">Bem</span>
-                    </h1>
-                    <p class="hero-desc">Encontre <strong>grupos de apoio</strong> com pessoas que entendem o que você sente. Espaços seguros, acolhedores e gratuitos.</p>
+        <!-- ===== MODAL DE BOAS-VINDAS ===== -->
+        <div id="welcomeModal" class="modal-overlay active">
+            <div class="modal-card">
+                <div class="modal-badge">plataforma de acolhimento</div>
+                <h1 class="modal-title">
+                    <span class="modal-title-line">Acolhe</span>
+                    <span class="modal-title-line modal-title-accent">Bem</span>
+                </h1>
+                <p class="modal-desc">Encontre <strong>grupos de apoio</strong> com pessoas que entendem o que você sente. Espaços seguros, acolhedores e gratuitos.</p>
+                <p class="modal-question">Para quem você busca acolhimento?</p>
+                <div class="modal-gender-btns">
+                    <button class="modal-gender-btn" data-gender="women">
+                        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                            <circle cx="24" cy="16" r="10"/>
+                            <line x1="24" y1="26" x2="24" y2="40"/>
+                            <line x1="18" y1="34" x2="30" y2="34"/>
+                        </svg>
+                        <span>Feminino</span>
+                    </button>
+                    <button class="modal-gender-btn" data-gender="men">
+                        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                            <circle cx="19" cy="28" r="10"/>
+                            <line x1="26" y1="21" x2="38" y2="9"/>
+                            <polyline points="30,9 38,9 38,17"/>
+                        </svg>
+                        <span>Masculino</span>
+                    </button>
                 </div>
-
-                <div class="selection-area">
-                    <p class="selection-question">Para quem você busca acolhimento?</p>
-                    <div class="gender-cards">
-                        <button class="gender-card" data-gender="women" aria-label="Grupos para Mulheres">
-                            <div class="gc-glow"></div>
-                            <div class="gc-content">
-                                <div class="gc-icon-wrap women-icon">
-                                    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-                                        <circle cx="24" cy="16" r="11"/>
-                                        <line x1="24" y1="27" x2="24" y2="42"/>
-                                        <line x1="17" y1="36" x2="31" y2="36"/>
-                                    </svg>
-                                </div>
-                                <h3 class="gc-title">Mulheres</h3>
-                                <p class="gc-meta">5 grupos &bull; 24 temas</p>
-                                <div class="gc-arrow">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                                </div>
-                            </div>
-                        </button>
-                        <button class="gender-card" data-gender="men" aria-label="Grupos para Homens">
-                            <div class="gc-glow"></div>
-                            <div class="gc-content">
-                                <div class="gc-icon-wrap men-icon">
-                                    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-                                        <circle cx="19" cy="28" r="11"/>
-                                        <line x1="27" y1="20" x2="40" y2="7"/>
-                                        <polyline points="31,7 40,7 40,16"/>
-                                    </svg>
-                                </div>
-                                <h3 class="gc-title">Homens</h3>
-                                <p class="gc-meta">5 grupos &bull; 25 temas</p>
-                                <div class="gc-arrow">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                                </div>
-                            </div>
-                        </button>
-                    </div>
+                <button class="modal-skip-btn" id="modalSkipBtn">Prefiro não me identificar</button>
+                <div class="modal-footer">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1C8.676 1 6 3.676 6 7v2H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V11a2 2 0 00-2-2h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v2H8V7c0-2.276 1.724-4 4-4zm0 11a2 2 0 110 4 2 2 0 010-4z"/></svg>
+                    <span>Nenhum dado pessoal é coletado</span>
                 </div>
-
-                <footer class="welcome-footer">
-                    <span class="lock-icon">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1C8.676 1 6 3.676 6 7v2H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V11a2 2 0 00-2-2h-2V7c0-3.324-2.676-6-6-6zm0 2c2.276 0 4 1.724 4 4v2H8V7c0-2.276 1.724-4 4-4zm0 11a2 2 0 110 4 2 2 0 010-4z"/></svg>
-                    </span>
-                    Sua privacidade é respeitada. Nenhum dado pessoal é coletado.
-                </footer>
-            </div>
-        </section>
-
-        <!-- ===== TRANSIÇÃO ANIMADA ===== -->
-        <div id="transition-overlay" class="transition-overlay">
-            <div class="transition-content">
-                <div class="transition-icon" id="transIcon"></div>
-                <div class="transition-loader">
-                    <div class="tl-track"><div class="tl-fill" id="tlFill"></div></div>
-                </div>
-                <p class="transition-text" id="transText">Preparando seu espaço...</p>
             </div>
         </div>
 
-        <!-- ===== TELA 2: GRUPOS ===== -->
-        <section id="groups-screen" class="screen">
-            <!-- Top Bar -->
+        <!-- ===== TELA PRINCIPAL ===== -->
+        <section id="mainScreen" class="main-screen">
+            <!-- Top Bar com Abas -->
             <header class="topbar" id="topbar">
-                <button class="topbar-btn" id="backBtn" aria-label="Voltar">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                </button>
-                <div class="topbar-info">
-                    <h2 id="topbarTitle"></h2>
-                    <p id="topbarSub"></p>
+                <div class="topbar-brand">
+                    <span class="topbar-logo">AcolheBem</span>
                 </div>
-                <button class="topbar-btn" id="indexBtn" aria-label="Índice">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                </button>
+                <nav class="topbar-tabs">
+                    <button class="tab-btn active" data-tab="women" id="tabWomen">
+                        <svg class="tab-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                            <circle cx="24" cy="16" r="10"/>
+                            <line x1="24" y1="26" x2="24" y2="40"/>
+                            <line x1="18" y1="34" x2="30" y2="34"/>
+                        </svg>
+                        <span>Feminino</span>
+                    </button>
+                    <button class="tab-btn" data-tab="men" id="tabMen">
+                        <svg class="tab-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                            <circle cx="19" cy="28" r="10"/>
+                            <line x1="26" y1="21" x2="38" y2="9"/>
+                            <polyline points="30,9 38,9 38,17"/>
+                        </svg>
+                        <span>Masculino</span>
+                    </button>
+                    <button class="tab-btn" data-tab="community" id="tabCommunity">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        <span>Comunidade</span>
+                    </button>
+                </nav>
+                <div class="topbar-right">
+                    <!-- Auth: logged out -->
+                    <button class="topbar-btn topbar-login-btn" id="loginBtn" aria-label="Entrar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                    </button>
+                    <!-- Auth: logged in -->
+                    <div class="topbar-user" id="topbarUser" style="display:none">
+                        <button class="topbar-avatar-btn" id="avatarBtn" aria-label="Meu perfil">
+                            <img id="topbarAvatar" src="" alt="Avatar" class="topbar-avatar-img">
+                            <span id="topbarInitial" class="topbar-avatar-initial"></span>
+                        </button>
+                        <button class="topbar-btn topbar-logout-btn" id="logoutBtn" aria-label="Sair" title="Sair">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        </button>
+                    </div>
+                    <button class="topbar-btn" id="indexBtn" aria-label="Índice">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    </button>
+                </div>
             </header>
 
-            <!-- D3 Hero Viz -->
-            <div class="viz-wrap" id="vizWrap">
-                <svg id="heroSVG"></svg>
+            <!-- Container principal -->
+            <div class="main-body" id="mainBody">
+                <!-- D3 Visualization -->
+                <div class="viz-wrap" id="vizWrap">
+                    <svg id="heroSVG"></svg>
+                </div>
+
+                <!-- Cards -->
+                <main class="cards-area" id="cardsArea"></main>
             </div>
 
             <!-- Índice Flutuante -->
             <nav class="floating-index" id="floatingIndex">
                 <div class="fi-header">
-                    <span>📑 Índice Rápido</span>
+                    <span>Índice Rápido</span>
                     <button id="fiClose" class="fi-close">&times;</button>
                 </div>
                 <ul id="fiList" class="fi-list"></ul>
             </nav>
             <div class="fi-backdrop" id="fiBackdrop"></div>
 
-            <!-- Cards de Tópicos -->
-            <main class="cards-area" id="cardsArea"></main>
+            <!-- ===== COMMUNITY SECTION (toggled by tab) ===== -->
+            <div id="communitySection" class="community-section" style="display:none">
+
+                <!-- ===== TOPICS LISTING VIEW ===== -->
+                <div id="topicsView">
+                    <div class="community-header">
+                        <h2 class="community-title">Comunidade</h2>
+                        <button class="create-topic-btn" id="createTopicBtn">+ Criar tema</button>
+                    </div>
+                    <div id="topicsList" class="topics-list"></div>
+                </div>
+
+                <!-- ===== TOPIC FEED VIEW (single topic) ===== -->
+                <div id="topicFeedView" style="display:none">
+                    <div class="topic-feed-header">
+                        <button class="back-btn" id="backToTopicsBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            <span>Voltar</span>
+                        </button>
+                        <div class="topic-feed-title" id="topicFeedTitle"></div>
+                    </div>
+                    <!-- Filters -->
+                    <div class="community-filters" id="communityFilters">
+                        <select class="filter-select" id="filterGender">
+                            <option value="">Todos os generos</option>
+                            <option value="female">Feminino</option>
+                            <option value="male">Masculino</option>
+                            <option value="other">Outro</option>
+                        </select>
+                        <select class="filter-select" id="filterAge">
+                            <option value="">Todas as idades</option>
+                            <option value="18-25">18–25 anos</option>
+                            <option value="26-35">26–35 anos</option>
+                            <option value="36-45">36–45 anos</option>
+                            <option value="46-60">46–60 anos</option>
+                            <option value="60+">60+ anos</option>
+                        </select>
+                    </div>
+                    <!-- Composer -->
+                    <div class="feed-composer" id="feedComposer">
+                        <div class="feed-composer-inner">
+                            <div class="feed-composer-avatar" id="composerAvatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </div>
+                            <textarea id="composerText" placeholder="Compartilhe algo com a comunidade..." rows="3"></textarea>
+                        </div>
+                        <div class="feed-composer-footer">
+                            <label class="anon-toggle">
+                                <input type="checkbox" id="anonCheckbox">
+                                <span>Publicar anonimamente</span>
+                            </label>
+                            <button class="feed-post-btn" id="postBtn" disabled>Publicar</button>
+                        </div>
+                    </div>
+                    <div class="feed-composer-login" id="composerLogin" style="display:none">
+                        <p>Faca login para compartilhar com a comunidade</p>
+                        <button class="gate-signup-btn" id="feedLoginBtn">Entrar ou cadastrar</button>
+                    </div>
+                    <!-- Posts list -->
+                    <div id="feedList" class="feed-list"></div>
+                    <div id="feedEmpty" class="feed-empty" style="display:none">
+                        <span class="feed-empty-icon">💬</span>
+                        <p>Nenhuma publicacao ainda.</p>
+                        <p class="feed-empty-sub">Seja o primeiro a compartilhar!</p>
+                    </div>
+                    <button id="feedLoadMore" class="feed-load-more" style="display:none">Carregar mais</button>
+                </div>
+            </div>
+
+            <!-- ===== CREATE TOPIC MODAL ===== -->
+            <div id="createTopicModal" class="auth-overlay">
+                <div class="auth-card" style="max-width:400px">
+                    <button class="auth-close" id="createTopicCloseBtn">&times;</button>
+                    <h2 class="profile-title">Criar novo tema</h2>
+                    <form id="createTopicForm" class="auth-form">
+                        <div class="auth-field">
+                            <label for="topicEmoji">Emoji</label>
+                            <input type="text" id="topicEmoji" placeholder="💬" maxlength="4" style="font-size:1.5rem;text-align:center;width:80px">
+                        </div>
+                        <div class="auth-field">
+                            <label for="topicName">Nome do tema *</label>
+                            <input type="text" id="topicName" required placeholder="Ex: Luto, Bullying..." maxlength="60">
+                        </div>
+                        <div class="auth-field">
+                            <label for="topicDescription">Descricao</label>
+                            <textarea id="topicDescription" rows="2" placeholder="Breve descricao do tema..." maxlength="200"></textarea>
+                        </div>
+                        <div id="createTopicError" class="auth-error"></div>
+                        <button type="submit" class="auth-submit" id="createTopicSubmitBtn">Criar tema</button>
+                    </form>
+                </div>
+            </div>
 
             <!-- Rodapé -->
-            <footer class="groups-footer">
+            <footer class="groups-footer" id="mainFooter">
                 <div class="gf-inner">
-                    <span class="gf-heart">💚</span>
                     <p>AcolheBem — Você não está sozinho(a)</p>
                     <p class="gf-small">Clique em "Entrar no grupo" para acessar via WhatsApp</p>
                 </div>
@@ -133,7 +232,208 @@
         </section>
     </div>
 
+    <!-- ===== AUTH MODAL ===== -->
+    <div id="authModal" class="auth-overlay">
+        <div class="auth-card">
+            <button class="auth-close" id="authCloseBtn">&times;</button>
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-auth-tab="login">Entrar</button>
+                <button class="auth-tab" data-auth-tab="signup">Cadastrar</button>
+            </div>
+
+            <!-- LOGIN FORM -->
+            <form id="loginForm" class="auth-form">
+                <div class="auth-field">
+                    <label for="loginEmail">E-mail</label>
+                    <input type="email" id="loginEmail" required placeholder="seu@email.com">
+                </div>
+                <div class="auth-field">
+                    <label for="loginPassword">Senha</label>
+                    <input type="password" id="loginPassword" required placeholder="Sua senha" minlength="6">
+                </div>
+                <div id="loginError" class="auth-error"></div>
+                <button type="submit" class="auth-submit" id="loginSubmitBtn">Entrar</button>
+            </form>
+
+            <!-- SIGNUP FORM -->
+            <form id="signupForm" class="auth-form" style="display:none">
+                <div class="auth-field">
+                    <label for="signupName">Nome completo *</label>
+                    <input type="text" id="signupName" required placeholder="Seu nome">
+                </div>
+                <div class="auth-field">
+                    <label for="signupEmail">E-mail *</label>
+                    <input type="email" id="signupEmail" required placeholder="seu@email.com">
+                </div>
+                <div class="auth-field">
+                    <label for="signupPassword">Senha *</label>
+                    <input type="password" id="signupPassword" required placeholder="Mínimo 6 caracteres" minlength="6">
+                </div>
+                <div class="auth-field">
+                    <label for="signupWhatsapp">WhatsApp (com DDD) *</label>
+                    <input type="tel" id="signupWhatsapp" required placeholder="(51) 99999-0000">
+                </div>
+                <div class="auth-row">
+                    <div class="auth-field auth-field-half">
+                        <label for="signupCity">Cidade</label>
+                        <input type="text" id="signupCity" placeholder="Sua cidade">
+                    </div>
+                    <div class="auth-field auth-field-half">
+                        <label for="signupState">Estado</label>
+                        <select id="signupState">
+                            <option value="">Selecione</option>
+                            <option value="AC">AC</option><option value="AL">AL</option>
+                            <option value="AP">AP</option><option value="AM">AM</option>
+                            <option value="BA">BA</option><option value="CE">CE</option>
+                            <option value="DF">DF</option><option value="ES">ES</option>
+                            <option value="GO">GO</option><option value="MA">MA</option>
+                            <option value="MT">MT</option><option value="MS">MS</option>
+                            <option value="MG">MG</option><option value="PA">PA</option>
+                            <option value="PB">PB</option><option value="PR">PR</option>
+                            <option value="PE">PE</option><option value="PI">PI</option>
+                            <option value="RJ">RJ</option><option value="RN">RN</option>
+                            <option value="RS">RS</option><option value="RO">RO</option>
+                            <option value="RR">RR</option><option value="SC">SC</option>
+                            <option value="SP">SP</option><option value="SE">SE</option>
+                            <option value="TO">TO</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="auth-row">
+                    <div class="auth-field auth-field-half">
+                        <label for="signupGender">Genero</label>
+                        <select id="signupGender">
+                            <option value="">Prefiro nao dizer</option>
+                            <option value="female">Feminino</option>
+                            <option value="male">Masculino</option>
+                            <option value="other">Outro</option>
+                        </select>
+                    </div>
+                    <div class="auth-field auth-field-half">
+                        <label for="signupBirthYear">Ano de nascimento</label>
+                        <input type="number" id="signupBirthYear" placeholder="Ex: 1990" min="1920" max="2015">
+                    </div>
+                </div>
+                <div class="auth-field">
+                    <label for="signupBio">Apresentação</label>
+                    <textarea id="signupBio" rows="3" placeholder="Conte um pouco sobre você..."></textarea>
+                </div>
+                <div id="signupError" class="auth-error"></div>
+                <div id="signupSuccess" class="auth-success"></div>
+                <button type="submit" class="auth-submit" id="signupSubmitBtn">Criar conta</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===== PROFILE MODAL ===== -->
+    <div id="profileModal" class="auth-overlay">
+        <div class="auth-card profile-card">
+            <button class="auth-close" id="profileCloseBtn">&times;</button>
+            <h2 class="profile-title">Meu Perfil</h2>
+            <form id="profileForm" class="auth-form">
+                <div class="auth-field" style="text-align:center">
+                    <div class="profile-avatar-wrap">
+                        <div class="auth-avatar-preview profile-avatar-big" id="profileAvatarPreview">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        </div>
+                        <label for="profileAvatarInput" class="auth-avatar-label">Alterar foto</label>
+                        <input type="file" id="profileAvatarInput" accept="image/*" class="auth-file-input">
+                        <button type="button" class="profile-remove-avatar" id="profileRemoveAvatar" style="display:none">Remover foto</button>
+                    </div>
+                </div>
+                <div class="auth-field">
+                    <label for="profileName">Nome</label>
+                    <input type="text" id="profileName" required>
+                </div>
+                <div class="auth-field">
+                    <label for="profileWhatsapp">WhatsApp</label>
+                    <input type="tel" id="profileWhatsapp" required>
+                </div>
+                <div class="auth-row">
+                    <div class="auth-field auth-field-half">
+                        <label for="profileCity">Cidade</label>
+                        <input type="text" id="profileCity">
+                    </div>
+                    <div class="auth-field auth-field-half">
+                        <label for="profileState">Estado</label>
+                        <select id="profileState">
+                            <option value="">Selecione</option>
+                            <option value="AC">AC</option><option value="AL">AL</option>
+                            <option value="AP">AP</option><option value="AM">AM</option>
+                            <option value="BA">BA</option><option value="CE">CE</option>
+                            <option value="DF">DF</option><option value="ES">ES</option>
+                            <option value="GO">GO</option><option value="MA">MA</option>
+                            <option value="MT">MT</option><option value="MS">MS</option>
+                            <option value="MG">MG</option><option value="PA">PA</option>
+                            <option value="PB">PB</option><option value="PR">PR</option>
+                            <option value="PE">PE</option><option value="PI">PI</option>
+                            <option value="RJ">RJ</option><option value="RN">RN</option>
+                            <option value="RS">RS</option><option value="RO">RO</option>
+                            <option value="RR">RR</option><option value="SC">SC</option>
+                            <option value="SP">SP</option><option value="SE">SE</option>
+                            <option value="TO">TO</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="auth-row">
+                    <div class="auth-field auth-field-half">
+                        <label for="profileGender">Genero</label>
+                        <select id="profileGender">
+                            <option value="">Prefiro nao dizer</option>
+                            <option value="female">Feminino</option>
+                            <option value="male">Masculino</option>
+                            <option value="other">Outro</option>
+                        </select>
+                    </div>
+                    <div class="auth-field auth-field-half">
+                        <label for="profileBirthYear">Ano de nascimento</label>
+                        <input type="number" id="profileBirthYear" placeholder="Ex: 1990" min="1920" max="2015">
+                    </div>
+                </div>
+                <div class="auth-field">
+                    <label for="profileBio">Apresentação</label>
+                    <textarea id="profileBio" rows="3"></textarea>
+                </div>
+                <div id="profileError" class="auth-error"></div>
+                <div id="profileSuccess" class="auth-success"></div>
+                <div class="profile-actions">
+                    <button type="submit" class="auth-submit">Salvar</button>
+                    <button type="button" class="auth-cancel" id="profileCancelBtn">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===== PASSWORD GATE MODAL ===== -->
+    <div id="gateModal" class="auth-overlay">
+        <div class="auth-card gate-card">
+            <button class="auth-close" id="gateCloseBtn">&times;</button>
+            <div class="gate-icon">🔒</div>
+            <h2 class="gate-title">Acesso ao grupo</h2>
+            <p class="gate-desc">Digite a senha do dia para acessar o link do grupo, ou cadastre-se para acesso direto.</p>
+            <form id="gateForm" class="auth-form">
+                <div class="auth-field">
+                    <label for="gatePassword">Senha do dia</label>
+                    <input type="text" id="gatePassword" placeholder="Digite a senha" inputmode="numeric" autocomplete="off">
+                </div>
+                <div id="gateError" class="auth-error"></div>
+                <button type="submit" class="auth-submit gate-submit">Verificar senha</button>
+            </form>
+            <div class="gate-divider"><span>ou</span></div>
+            <button class="gate-signup-btn" id="gateSignupBtn">Cadastre-se para acesso livre</button>
+            <!-- Link revealed after correct password -->
+            <a id="gateLink" class="wpp-btn-big gate-link" href="#" target="_blank" rel="noopener noreferrer" style="display:none">
+                <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                <span>Entrar no grupo</span>
+            </a>
+        </div>
+    </div>
+
     <script src="js/data.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/profile.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/feed.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>
