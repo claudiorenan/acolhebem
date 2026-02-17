@@ -1217,6 +1217,164 @@ img,svg{display:block}
 .feed-load-more:hover{background:var(--ink-10);color:var(--ink-70)}
 
 /* ==========================================================
+   ADMIN PANEL
+   ========================================================== */
+.admin-section{
+    padding:20px;
+    max-width:800px;
+    margin:0 auto;
+}
+.admin-header{
+    display:flex;align-items:center;gap:12px;margin-bottom:20px;
+}
+.admin-title{
+    font-family:var(--f-display);font-size:1.3rem;font-weight:700;color:var(--ink);
+}
+.admin-tabs{
+    display:flex;gap:4px;margin-bottom:20px;
+    background:var(--ink-05);border-radius:var(--r-md);padding:4px;
+}
+.admin-tab{
+    flex:1;padding:10px 16px;border:none;
+    background:transparent;color:var(--ink-40);
+    font-size:.85rem;font-weight:600;font-family:var(--f-body);
+    border-radius:12px;cursor:pointer;
+    transition:all var(--dur-fast);
+}
+.admin-tab.active{
+    background:var(--white);color:var(--emerald);
+    box-shadow:var(--shadow-1);
+}
+
+/* Admin Post Item */
+.admin-post-item{
+    background:var(--white);border-radius:var(--r-sm);
+    padding:14px 16px;margin-bottom:8px;
+    border:1px solid var(--ink-10);
+}
+.admin-post-item.admin-post-hidden{
+    opacity:.6;border-left:3px solid var(--gold);
+}
+.admin-post-item.admin-post-deleted{
+    opacity:.4;border-left:3px solid #e53935;
+}
+.admin-post-meta{
+    display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;
+    font-size:.8rem;color:var(--ink-40);margin-bottom:6px;
+}
+.admin-post-meta strong{color:var(--ink);font-size:.85rem}
+.admin-post-email{color:var(--ink-20)}
+.admin-post-date{color:var(--ink-20)}
+.admin-post-topic{
+    background:var(--ink-05);padding:2px 8px;border-radius:100px;font-size:.75rem;
+}
+.admin-status-visible{color:var(--emerald);font-weight:600}
+.admin-status-hidden{color:#f59e0b;font-weight:600}
+.admin-status-deleted{color:#e53935;font-weight:600}
+.admin-post-content{
+    font-size:.88rem;color:var(--ink-70);line-height:1.5;
+    margin-bottom:10px;
+}
+.admin-post-actions{
+    display:flex;gap:6px;
+}
+.admin-action-btn{
+    padding:6px 14px;border-radius:100px;border:1.5px solid var(--ink-10);
+    font-size:.78rem;font-weight:600;font-family:var(--f-body);
+    cursor:pointer;background:var(--white);color:var(--ink-70);
+    transition:all var(--dur-fast);
+}
+.admin-action-btn:hover{border-color:var(--ink-20)}
+.admin-btn-show{color:var(--emerald);border-color:var(--emerald)}
+.admin-btn-show:hover{background:var(--emerald-l)}
+.admin-btn-hide{color:#f59e0b;border-color:#f59e0b}
+.admin-btn-hide:hover{background:#fef3c7}
+.admin-btn-delete{color:#e53935;border-color:#e53935}
+.admin-btn-delete:hover{background:#fef2f2}
+.admin-btn-save{
+    color:var(--white);background:var(--emerald);border-color:var(--emerald);
+    padding:8px 20px;
+}
+.admin-btn-save:hover{background:var(--emerald-d)}
+
+/* Admin Members */
+.admin-members-count{
+    font-size:.85rem;color:var(--ink-40);font-weight:600;
+    margin-bottom:12px;
+}
+.admin-member-item{
+    display:flex;align-items:center;gap:12px;
+    background:var(--white);border-radius:var(--r-sm);
+    padding:12px 14px;margin-bottom:6px;
+    border:1px solid var(--ink-10);
+}
+.admin-member-avatar{
+    width:40px;height:40px;border-radius:50%;
+    flex-shrink:0;object-fit:cover;
+}
+.admin-member-initial{
+    display:flex;align-items:center;justify-content:center;
+    background:var(--emerald-l);color:var(--emerald);
+    font-weight:700;font-size:.9rem;
+}
+.admin-member-info{flex:1;min-width:0}
+.admin-member-name{
+    font-size:.88rem;font-weight:600;color:var(--ink);
+}
+.admin-badge{
+    display:inline-block;padding:1px 8px;border-radius:100px;
+    background:var(--emerald);color:var(--white);
+    font-size:.68rem;font-weight:700;margin-left:6px;
+    vertical-align:middle;
+}
+.admin-member-detail{
+    font-size:.78rem;color:var(--ink-40);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.admin-wpp-btn{
+    display:flex;align-items:center;justify-content:center;
+    width:38px;height:38px;border-radius:50%;flex-shrink:0;
+    background:var(--wpp);color:var(--white);
+    transition:background var(--dur-fast);
+}
+.admin-wpp-btn:hover{background:var(--wpp-d)}
+.admin-wpp-btn svg{width:20px;height:20px}
+
+/* Admin Topics Editor */
+.admin-topic-item{
+    background:var(--white);border-radius:var(--r-sm);
+    padding:14px 16px;margin-bottom:10px;
+    border:1px solid var(--ink-10);
+}
+.admin-topic-header{
+    display:flex;align-items:center;gap:8px;margin-bottom:12px;
+}
+.admin-topic-emoji{font-size:1.3rem}
+.admin-topic-name{font-weight:600;color:var(--ink);font-size:.95rem;flex:1}
+.admin-topic-posts{font-size:.78rem;color:var(--ink-40)}
+.admin-topic-fields{
+    display:flex;flex-direction:column;gap:10px;
+}
+.admin-topic-fields .auth-field{margin-bottom:0}
+.admin-topic-input{
+    width:100%;padding:8px 12px;border-radius:8px;
+    border:1.5px solid var(--ink-10);font-size:.85rem;
+    font-family:var(--f-body);
+    transition:border-color var(--dur-fast);
+}
+.admin-topic-input:focus{outline:none;border-color:var(--emerald)}
+.admin-topic-saved{
+    color:var(--emerald);font-size:.82rem;font-weight:600;
+}
+
+/* Admin delete in feed */
+.admin-delete{color:#e53935;opacity:.7}
+.admin-delete:hover{opacity:1}
+
+/* Admin gear button */
+.topbar-admin-btn{color:var(--emerald)}
+
+/* ==========================================================
    MOBILE OVERRIDES — AUTH & FEED
    ========================================================== */
 @media(max-width:600px){
@@ -1233,4 +1391,9 @@ img,svg{display:block}
     .topic-feed-header{flex-wrap:wrap;gap:8px}
     .community-filters{gap:8px}
     .filter-select{padding:6px 10px;font-size:.78rem}
+    .admin-section{padding:14px 10px}
+    .admin-post-meta{font-size:.75rem}
+    .admin-post-actions{flex-wrap:wrap}
+    .admin-member-item{padding:10px 12px;gap:10px}
+    .admin-topic-fields{gap:8px}
 }

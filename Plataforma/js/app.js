@@ -162,6 +162,9 @@ class AcolheBemApp {
         // ---- FEED UI ----
         this.initFeed();
 
+        // ---- ADMIN UI ----
+        this.initAdmin();
+
         // load default tab (women)
         this.applyTheme();
         this.buildContent();
@@ -254,6 +257,9 @@ class AcolheBemApp {
 
             // Update composer avatar
             this.updateComposerAvatar();
+
+            // Show admin button if admin
+            this.$('adminBtn').style.display = this.currentProfile.is_admin ? '' : 'none';
         } else if (this.currentUser && !this.currentProfile) {
             // User exists but no profile yet (e.g. email not confirmed, or trigger pending)
             loginBtn.style.display = 'none';
@@ -264,6 +270,7 @@ class AcolheBemApp {
         } else {
             loginBtn.style.display = '';
             userArea.style.display = 'none';
+            this.$('adminBtn').style.display = 'none';
         }
 
         // Update community section visibility
@@ -730,7 +737,7 @@ class AcolheBemApp {
                     <div>${nameHTML}</div>
                     <div class="feed-post-date">${date}</div>
                 </div>
-                ${isOwn ? '<button class="feed-post-delete" title="Excluir">excluir</button>' : ''}
+                ${isOwn ? '<button class="feed-post-delete" title="Excluir">excluir</button>' : (this.currentProfile?.is_admin ? '<button class="feed-post-delete admin-delete" title="Excluir (admin)">excluir</button>' : '')}
             </div>
             <div class="feed-post-content">${this.escapeHTML(post.content)}</div>
             <div class="feed-post-actions">
@@ -1683,6 +1690,215 @@ class AcolheBemApp {
         const bd = this.$('fiBackdrop');
         if (open) { fi.classList.add('open'); bd.classList.add('active'); }
         else { fi.classList.remove('open'); bd.classList.remove('active'); }
+    }
+
+    // ========================================
+    //  ADMIN PANEL
+    // ========================================
+    initAdmin() {
+        this._adminPostsOffset = 0;
+        this._adminCurrentTab = 'posts';
+
+        this.$('adminBtn').addEventListener('click', () => this.showAdminPanel());
+        this.$('adminBackBtn').addEventListener('click', () => this.hideAdminPanel());
+
+        // Admin tab switching
+        this.$$('.admin-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.adminTab;
+                this._adminCurrentTab = tab;
+                this.$$('.admin-tab').forEach(b => b.classList.toggle('active', b === btn));
+                this.$('adminPostsPanel').style.display = tab === 'posts' ? '' : 'none';
+                this.$('adminMembersPanel').style.display = tab === 'members' ? '' : 'none';
+                this.$('adminTopicsPanel').style.display = tab === 'topics' ? '' : 'none';
+
+                if (tab === 'members') this.loadAdminMembers();
+                if (tab === 'topics') this.loadAdminTopics();
+            });
+        });
+
+        this.$('adminPostsLoadMore').addEventListener('click', () => this.loadAdminPosts(true));
+    }
+
+    showAdminPanel() {
+        this._previousView = this.currentTab;
+        this.$('mainBody').style.display = 'none';
+        this.$('communitySection').style.display = 'none';
+        this.$('adminSection').style.display = '';
+        this._adminPostsOffset = 0;
+        this.$('adminPostsList').innerHTML = '';
+        this.loadAdminPosts();
+    }
+
+    hideAdminPanel() {
+        this.$('adminSection').style.display = 'none';
+        if (this._previousView === 'community') {
+            this.showCommunity();
+        } else {
+            this.$('mainBody').style.display = '';
+        }
+    }
+
+    async loadAdminPosts(append = false) {
+        if (!append) {
+            this._adminPostsOffset = 0;
+            this.$('adminPostsList').innerHTML = '';
+        }
+        const posts = await Feed.loadAllPostsAdmin(30, this._adminPostsOffset);
+        this._adminPostsOffset += posts.length;
+
+        const list = this.$('adminPostsList');
+        posts.forEach(p => list.appendChild(this.buildAdminPostItem(p)));
+
+        this.$('adminPostsLoadMore').style.display = posts.length >= 30 ? '' : 'none';
+    }
+
+    buildAdminPostItem(post) {
+        const item = document.createElement('div');
+        item.className = 'admin-post-item';
+        if (post.status === 'hidden') item.classList.add('admin-post-hidden');
+        if (post.status === 'deleted') item.classList.add('admin-post-deleted');
+
+        const authorName = post.profiles?.name || 'Desconhecido';
+        const authorEmail = post.profiles?.email || '';
+        const topicName = post.topics ? `${post.topics.emoji} ${post.topics.name}` : 'Sem tema';
+        const date = new Date(post.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+        const statusLabel = post.status === 'visible' ? 'Visivel' : post.status === 'hidden' ? 'Oculto' : 'Excluido';
+        const statusClass = `admin-status-${post.status}`;
+        const isAnon = post.is_anonymous ? ' (anonimo)' : '';
+
+        item.innerHTML = `
+            <div class="admin-post-meta">
+                <strong>${this.escapeHTML(authorName)}</strong>${isAnon}
+                <span class="admin-post-email">${this.escapeHTML(authorEmail)}</span>
+                <span class="admin-post-date">${date}</span>
+                <span class="admin-post-topic">${this.escapeHTML(topicName)}</span>
+                <span class="${statusClass}">${statusLabel}</span>
+            </div>
+            <div class="admin-post-content">${this.escapeHTML(post.content).substring(0, 200)}</div>
+            <div class="admin-post-actions">
+                ${post.status !== 'visible' ? `<button class="admin-action-btn admin-btn-show" data-id="${post.id}" data-action="visible">Visivel</button>` : ''}
+                ${post.status !== 'hidden' ? `<button class="admin-action-btn admin-btn-hide" data-id="${post.id}" data-action="hidden">Ocultar</button>` : ''}
+                <button class="admin-action-btn admin-btn-delete" data-id="${post.id}" data-action="delete">Excluir</button>
+            </div>
+        `;
+
+        item.querySelectorAll('.admin-action-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const action = btn.dataset.action;
+                const postId = btn.dataset.id;
+                if (action === 'delete') {
+                    if (!confirm('Excluir permanentemente este post?')) return;
+                    await Feed.adminDeletePost(postId);
+                    item.remove();
+                } else {
+                    await Feed.updatePostStatus(postId, action);
+                    // Refresh this item
+                    const newPosts = await Feed.loadAllPostsAdmin(1, 0);
+                    const updatedPost = newPosts.find(p => p.id === postId);
+                    if (updatedPost) {
+                        const newItem = this.buildAdminPostItem(updatedPost);
+                        item.replaceWith(newItem);
+                    } else {
+                        this.loadAdminPosts();
+                    }
+                }
+            });
+        });
+
+        return item;
+    }
+
+    async loadAdminMembers() {
+        const list = this.$('adminMembersList');
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando...</div>';
+        const members = await Feed.loadMembers();
+
+        this.$('adminMembersCount').textContent = `${members.length} membros cadastrados`;
+        list.innerHTML = '';
+
+        members.forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'admin-member-item';
+            const date = new Date(m.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const avatar = m.photo_url
+                ? `<img src="${m.photo_url}" class="admin-member-avatar">`
+                : `<div class="admin-member-avatar admin-member-initial">${(m.name || 'U')[0].toUpperCase()}</div>`;
+            const genderLabel = m.gender === 'female' ? 'F' : m.gender === 'male' ? 'M' : m.gender === 'other' ? 'O' : '';
+            const location = [m.city, m.state].filter(Boolean).join(', ');
+            const adminBadge = m.is_admin ? '<span class="admin-badge">Admin</span>' : '';
+
+            // Format WhatsApp number for link
+            const wppNumber = (m.whatsapp || '').replace(/\D/g, '');
+            const wppLink = wppNumber ? `https://wa.me/55${wppNumber}` : '';
+
+            item.innerHTML = `
+                ${avatar}
+                <div class="admin-member-info">
+                    <div class="admin-member-name">${this.escapeHTML(m.name || 'Sem nome')} ${adminBadge}</div>
+                    <div class="admin-member-detail">${this.escapeHTML(m.email)}</div>
+                    <div class="admin-member-detail">${date}${genderLabel ? ' · ' + genderLabel : ''}${location ? ' · ' + this.escapeHTML(location) : ''}</div>
+                </div>
+                ${wppLink ? `<a href="${wppLink}" target="_blank" rel="noopener noreferrer" class="admin-wpp-btn" title="Chamar no WhatsApp">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                </a>` : ''}
+            `;
+            list.appendChild(item);
+        });
+    }
+
+    async loadAdminTopics() {
+        const list = this.$('adminTopicsList');
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando...</div>';
+        const topics = await Feed.loadTopics();
+        list.innerHTML = '';
+
+        topics.forEach(t => {
+            const item = document.createElement('div');
+            item.className = 'admin-topic-item';
+            item.innerHTML = `
+                <div class="admin-topic-header">
+                    <span class="admin-topic-emoji">${t.emoji}</span>
+                    <span class="admin-topic-name">${this.escapeHTML(t.name)}</span>
+                    <span class="admin-topic-posts">${t.post_count} posts</span>
+                </div>
+                <div class="admin-topic-fields">
+                    <div class="auth-field">
+                        <label>Nome</label>
+                        <input type="text" class="admin-topic-input" data-field="name" value="${this.escapeHTML(t.name)}" maxlength="60">
+                    </div>
+                    <div class="auth-field">
+                        <label>Link WhatsApp</label>
+                        <input type="url" class="admin-topic-input" data-field="whatsapp_link" value="${this.escapeHTML(t.whatsapp_link || '')}" placeholder="https://chat.whatsapp.com/...">
+                    </div>
+                    <div class="auth-field">
+                        <label>Descricao</label>
+                        <input type="text" class="admin-topic-input" data-field="description" value="${this.escapeHTML(t.description || '')}" maxlength="200">
+                    </div>
+                    <button class="admin-action-btn admin-btn-save" data-topic-id="${t.id}">Salvar</button>
+                    <span class="admin-topic-saved" style="display:none">Salvo!</span>
+                </div>
+            `;
+
+            const saveBtn = item.querySelector('.admin-btn-save');
+            const savedMsg = item.querySelector('.admin-topic-saved');
+            saveBtn.addEventListener('click', async () => {
+                const inputs = item.querySelectorAll('.admin-topic-input');
+                const updates = {};
+                inputs.forEach(inp => { updates[inp.dataset.field] = inp.value || null; });
+                saveBtn.disabled = true;
+                const { error } = await Feed.updateTopic(t.id, updates);
+                saveBtn.disabled = false;
+                if (error) {
+                    alert('Erro ao salvar: ' + error);
+                } else {
+                    savedMsg.style.display = '';
+                    setTimeout(() => { savedMsg.style.display = 'none'; }, 2000);
+                }
+            });
+
+            list.appendChild(item);
+        });
     }
 
     sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

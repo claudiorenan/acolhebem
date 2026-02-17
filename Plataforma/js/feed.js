@@ -102,6 +102,7 @@ const Feed = {
     let query = sb
       .from('posts')
       .select('*, profiles!posts_user_id_fkey(name, photo_url, gender, birth_year)')
+      .eq('status', 'visible')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -278,5 +279,89 @@ const Feed = {
     const { error } = await sb.from('replies').delete().eq('id', replyId);
     if (error) return { error: error.message };
     return { error: null };
+  },
+
+  // ========================================
+  //  ADMIN METHODS
+  // ========================================
+
+  /**
+   * Load all members (profiles) with created_at, ordered by newest.
+   */
+  async loadMembers() {
+    const sb = window.supabaseClient;
+    const { data, error } = await sb
+      .from('profiles')
+      .select('id, name, email, whatsapp, city, state, gender, birth_year, photo_url, is_admin, created_at')
+      .order('created_at', { ascending: false });
+    if (error) { console.error('loadMembers error:', error); return []; }
+    return data || [];
+  },
+
+  /**
+   * Load all posts for admin moderation (including hidden).
+   */
+  async loadAllPostsAdmin(limit = 50, offset = 0) {
+    const sb = window.supabaseClient;
+    const { data, error } = await sb
+      .from('posts')
+      .select('*, profiles!posts_user_id_fkey(name, photo_url, email), topics!posts_topic_id_fkey(name, emoji)')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) { console.error('loadAllPostsAdmin error:', error); return []; }
+    return data || [];
+  },
+
+  /**
+   * Update post status (visible, hidden, deleted).
+   */
+  async updatePostStatus(postId, status) {
+    const sb = window.supabaseClient;
+    const { error } = await sb
+      .from('posts')
+      .update({ status })
+      .eq('id', postId);
+    if (error) return { error: error.message };
+    return { error: null };
+  },
+
+  /**
+   * Admin hard-delete a post.
+   */
+  async adminDeletePost(postId) {
+    const sb = window.supabaseClient;
+    const { error } = await sb.from('posts').delete().eq('id', postId);
+    if (error) return { error: error.message };
+    return { error: null };
+  },
+
+  /**
+   * Update topic name, link, etc.
+   */
+  async updateTopic(topicId, updates) {
+    const sb = window.supabaseClient;
+    const { data, error } = await sb
+      .from('topics')
+      .update(updates)
+      .eq('id', topicId)
+      .select()
+      .single();
+    if (error) return { topic: null, error: error.message };
+    return { topic: data, error: null };
+  },
+
+  /**
+   * Check if current user is admin.
+   */
+  async isAdmin() {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return false;
+    const { data } = await sb
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', user.id)
+      .single();
+    return data?.is_admin === true;
   }
 };
