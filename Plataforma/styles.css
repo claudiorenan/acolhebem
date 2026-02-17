@@ -773,19 +773,95 @@ img,svg{display:block}
     margin-bottom:4px;
 }
 
-/* Psychologist notice */
-.auth-psi-notice{
-    display:flex;align-items:center;gap:8px;
+/* Psychologist toggle */
+.psi-toggle{
+    display:flex;align-items:center;gap:10px;
+    cursor:pointer;user-select:none;
+    padding:10px 14px;border-radius:var(--r-sm);
+    background:#f5f5f5;border:1px solid var(--ink-10);
+    transition:background var(--dur-fast), border-color var(--dur-fast);
+}
+.psi-toggle:has(input:checked){
+    background:#e8f5f1;border-color:var(--emerald);
+}
+.psi-toggle input{display:none}
+.psi-toggle-track{
+    position:relative;width:40px;height:22px;
+    background:#ccc;border-radius:11px;flex-shrink:0;
+    transition:background var(--dur-fast);
+}
+.psi-toggle:has(input:checked) .psi-toggle-track{
+    background:var(--emerald);
+}
+.psi-toggle-thumb{
+    position:absolute;top:2px;left:2px;
+    width:18px;height:18px;border-radius:50%;
+    background:white;
+    box-shadow:0 1px 3px rgba(0,0,0,.2);
+    transition:transform var(--dur-fast);
+}
+.psi-toggle:has(input:checked) .psi-toggle-thumb{
+    transform:translateX(18px);
+}
+.psi-toggle-label{
+    font-size:.88rem;font-weight:600;color:var(--ink);
+}
+.psi-toggle:has(input:checked) .psi-toggle-label{
+    color:var(--emerald-d);
+}
+
+/* Psi login hint */
+.auth-psi-hint{
+    display:flex;align-items:center;justify-content:center;gap:8px;
     padding:10px 14px;border-radius:var(--r-sm);
     background:#e8f5f1;border:1px solid var(--emerald);
     font-size:.82rem;color:var(--emerald-d);
-    line-height:1.4;
+    line-height:1.4;text-align:center;
+    animation:psiHintIn .3s ease;
 }
-.auth-psi-notice a{
+.auth-psi-hint a{
     color:var(--emerald);font-weight:600;
     text-decoration:underline;
 }
-.auth-psi-notice a:hover{color:var(--emerald-d)}
+.auth-psi-hint a:hover{color:var(--emerald-d)}
+@keyframes psiHintIn{
+    from{opacity:0;transform:translateY(-6px)}
+    to{opacity:1;transform:translateY(0)}
+}
+
+/* Psi signup panel */
+.auth-psi-panel{
+    text-align:center;padding:20px 16px;
+    border-radius:var(--r-sm);
+    background:linear-gradient(135deg, #e8f5f1, #f0faf7);
+    border:1px solid var(--emerald);
+    animation:psiHintIn .3s ease;
+}
+.auth-psi-panel-icon{font-size:2.4rem;margin-bottom:8px}
+.auth-psi-panel-title{
+    font-family:var(--ff-heading);font-size:1.1rem;
+    color:var(--emerald-d);margin-bottom:10px;
+}
+.auth-psi-panel-text{
+    font-size:.84rem;color:var(--ink-60);
+    line-height:1.5;margin-bottom:8px;
+}
+.auth-psi-panel-text strong{color:var(--emerald-d)}
+.auth-psi-panel-btn{
+    display:inline-flex;align-items:center;gap:6px;
+    margin-top:12px;padding:12px 24px;
+    border-radius:var(--r-sm);
+    background:var(--emerald);color:white;
+    font-weight:700;font-size:.9rem;
+    text-decoration:none;
+    transition:background var(--dur-fast), transform var(--dur-fast);
+}
+.auth-psi-panel-btn:hover{
+    background:var(--emerald-d);
+    transform:translateY(-1px);
+}
+.auth-psi-panel-btn svg{width:16px;height:16px}
+
 .auth-psi-icon{font-size:1.2rem;flex-shrink:0}
 
 /* Submit */
@@ -872,6 +948,9 @@ img,svg{display:block}
 .community-section{
     max-width:640px;width:100%;margin:0 auto;
     padding:24px 16px 48px;
+    overflow-y:auto;
+    max-height:calc(100vh - 60px);
+    -webkit-overflow-scrolling:touch;
 }
 
 /* Community Header */
@@ -1416,4 +1495,16 @@ img,svg{display:block}
     .admin-post-actions{flex-wrap:wrap}
     .admin-member-item{padding:10px 12px;gap:10px}
     .admin-topic-fields{gap:8px}
+}
+
+/* ============================================================
+   PSI BADGE — Psychologist verification badge
+   ============================================================ */
+.psi-badge{
+    display:inline-block;padding:1px 7px;border-radius:100px;
+    background:linear-gradient(135deg, #2f6f64, #3d8b7a);
+    color:#fff;font-size:.65rem;font-weight:700;
+    margin-left:4px;vertical-align:middle;
+    letter-spacing:.3px;
+    box-shadow:0 1px 3px rgba(47,111,100,.25);
 }

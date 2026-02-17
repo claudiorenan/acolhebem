@@ -81,6 +81,43 @@ class ParticleSystem {
 }
 
 // ============================================================
+//  CONTENT FILTER — blocks contact info in posts/replies
+// ============================================================
+const ContentFilter = {
+    patterns: [
+        { regex: /\d{2,3}[\s.\-]?\d{4,5}[\s.\-]?\d{4}/g, type: 'numero de telefone' },
+        { regex: /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, type: 'endereco de email' },
+        { regex: /(https?:\/\/|www\.)\S+/gi, type: 'link' },
+        { regex: /@[a-zA-Z0-9_]{3,}/g, type: 'perfil de rede social' },
+        { regex: /(?:whatsapp|wpp|zap|zapzap|instagram|insta|tiktok|telegram)\s*[:.]?\s*\d[\d\s.\-]{6,}/gi, type: 'contato de rede social' },
+    ],
+
+    /**
+     * Check if content contains blocked patterns.
+     * @param {string} content
+     * @returns {{ blocked: boolean, type: string|null }}
+     */
+    check(content) {
+        for (const p of this.patterns) {
+            p.regex.lastIndex = 0;
+            if (p.regex.test(content)) {
+                return { blocked: true, type: p.type };
+            }
+        }
+        return { blocked: false, type: null };
+    },
+
+    /**
+     * Get a user-friendly error message.
+     * @param {string} type
+     * @returns {string}
+     */
+    message(type) {
+        return `Sua mensagem contem ${type}. Para sua seguranca, nao e permitido compartilhar dados de contato.`;
+    }
+};
+
+// ============================================================
 //  MAIN APP
 // ============================================================
 class AcolheBemApp {
@@ -193,11 +230,29 @@ class AcolheBemApp {
                 const isLogin = tab.dataset.authTab === 'login';
                 this.$('loginForm').style.display = isLogin ? 'flex' : 'none';
                 this.$('signupForm').style.display = isLogin ? 'none' : 'flex';
+                // Reset psi toggles
+                this.$('loginPsiToggle').checked = false;
+                this.$('loginPsiHint').style.display = 'none';
+                this.$('signupPsiToggle').checked = false;
+                this.$('signupPsiPanel').style.display = 'none';
+                this.$('signupFieldsWrap').style.display = '';
             });
         });
 
         // Login form
         this.$('loginForm').addEventListener('submit', e => this.handleLogin(e));
+
+        // Login Psi toggle
+        this.$('loginPsiToggle').addEventListener('change', (e) => {
+            this.$('loginPsiHint').style.display = e.target.checked ? '' : 'none';
+        });
+
+        // Signup Psi toggle
+        this.$('signupPsiToggle').addEventListener('change', (e) => {
+            const isPsi = e.target.checked;
+            this.$('signupPsiPanel').style.display = isPsi ? '' : 'none';
+            this.$('signupFieldsWrap').style.display = isPsi ? 'none' : '';
+        });
 
         // Forgot password
         this.$('forgotPasswordBtn').addEventListener('click', () => this.showForgotPassword());
@@ -207,12 +262,13 @@ class AcolheBemApp {
         // Signup form
         this.$('signupForm').addEventListener('submit', e => this.handleSignup(e));
 
-        // Listen for auth state changes
+        // Listen for auth state changes (handles login, logout, and initial session restore)
+        this._authReady = false;
         Auth.onAuthChange(async (event, session) => {
+            this._authReady = true;
             if (session?.user) {
                 this.currentUser = session.user;
                 const profile = await Profile.getProfile(session.user.id);
-                // Profile may be null right after signup (before email confirmation triggers profile creation)
                 this.currentProfile = profile;
                 this.updateTopbarUser();
             } else {
@@ -222,17 +278,17 @@ class AcolheBemApp {
             }
         });
 
-        // Check initial auth state
-        this.checkInitialAuth();
-    }
-
-    async checkInitialAuth() {
-        const user = await Auth.getCurrentUser();
-        if (user) {
-            this.currentUser = user;
-            this.currentProfile = await Profile.getProfile(user.id);
-            this.updateTopbarUser();
-        }
+        // Fallback: if onAuthStateChange doesn't fire within 2s, check manually
+        setTimeout(async () => {
+            if (!this._authReady) {
+                const user = await Auth.getCurrentUser();
+                if (user) {
+                    this.currentUser = user;
+                    this.currentProfile = await Profile.getProfile(user.id);
+                    this.updateTopbarUser();
+                }
+            }
+        }, 2000);
     }
 
     updateTopbarUser() {
@@ -284,21 +340,41 @@ class AcolheBemApp {
         errEl.classList.remove('visible');
         errEl.style.color = '';
         btn.disabled = true;
-        btn.textContent = 'Entrando...';
 
         const email = this.$('loginEmail').value;
         const password = this.$('loginPassword').value;
+        const isPsi = this.$('loginPsiToggle').checked;
 
-        const { error } = await Auth.signIn(email, password);
-        btn.disabled = false;
-        btn.textContent = 'Entrar';
+        if (isPsi) {
+            // Psi path: authenticate via Cadê Meu Psi
+            btn.textContent = 'Verificando no Cade Meu Psi...';
+            const { error } = await Auth.signInPsi(email, password);
+            btn.disabled = false;
+            btn.textContent = 'Entrar';
 
-        if (error) {
-            errEl.textContent = error;
-            errEl.classList.add('visible');
+            if (error) {
+                errEl.textContent = error;
+                errEl.classList.add('visible');
+            } else {
+                this.closeOverlay('authModal');
+                this.$('loginForm').reset();
+                this.$('loginPsiToggle').checked = false;
+                this.$('loginPsiHint').style.display = 'none';
+            }
         } else {
-            this.closeOverlay('authModal');
-            this.$('loginForm').reset();
+            // Normal path: Supabase auth
+            btn.textContent = 'Entrando...';
+            const { error } = await Auth.signIn(email, password);
+            btn.disabled = false;
+            btn.textContent = 'Entrar';
+
+            if (error) {
+                errEl.textContent = error;
+                errEl.classList.add('visible');
+            } else {
+                this.closeOverlay('authModal');
+                this.$('loginForm').reset();
+            }
         }
     }
 
@@ -390,7 +466,7 @@ class AcolheBemApp {
 
             // Show success message on login form
             const loginErr = this.$('loginError');
-            loginErr.textContent = 'Conta criada! Faça login com seu e-mail e senha.';
+            loginErr.innerHTML = 'Conta criada! Enviamos um e-mail de confirmação para <strong>' + signupEmail + '</strong>. Verifique sua caixa de entrada e spam antes de fazer login.';
             loginErr.style.color = '#2f6f64';
             loginErr.classList.add('visible');
         }
@@ -577,10 +653,13 @@ class AcolheBemApp {
         // Back to topics button
         this.$('backToTopicsBtn').addEventListener('click', () => this.handleBackToTopics());
 
-        // Create topic button & modal
-        this.$('createTopicBtn').addEventListener('click', () => this.showCreateTopicModal());
-        this.$('createTopicCloseBtn').addEventListener('click', () => this.closeOverlay('createTopicModal'));
-        this.$('createTopicForm').addEventListener('submit', e => this.handleCreateTopic(e));
+        // Create topic button & modal (optional — button may not exist)
+        const createTopicBtn = this.$('createTopicBtn');
+        if (createTopicBtn) createTopicBtn.addEventListener('click', () => this.showCreateTopicModal());
+        const createTopicCloseBtn = this.$('createTopicCloseBtn');
+        if (createTopicCloseBtn) createTopicCloseBtn.addEventListener('click', () => this.closeOverlay('createTopicModal'));
+        const createTopicForm = this.$('createTopicForm');
+        if (createTopicForm) createTopicForm.addEventListener('submit', e => this.handleCreateTopic(e));
 
         // Filters
         this.$('filterGender').addEventListener('change', () => this.handleFilterChange());
@@ -669,6 +748,13 @@ class AcolheBemApp {
         const content = composerText.value.trim();
         if (!content) return;
 
+        // Content filter check
+        const filterResult = ContentFilter.check(content);
+        if (filterResult.blocked) {
+            alert(ContentFilter.message(filterResult.type));
+            return;
+        }
+
         const postBtn = this.$('postBtn');
         postBtn.disabled = true;
 
@@ -719,7 +805,8 @@ class AcolheBemApp {
             avatarHTML = authorPhoto
                 ? `<img src="${authorPhoto}" alt="${authorName}">`
                 : `<span class="avatar-initial">${initial}</span>`;
-            nameHTML = `<span class="feed-post-name">${this.escapeHTML(authorName)}</span>`;
+            const psiBadge = post.author?.is_psi ? ' <span class="psi-badge">Psi.</span>' : '';
+            nameHTML = `<span class="feed-post-name">${this.escapeHTML(authorName)}</span>${psiBadge}`;
         }
 
         const date = new Date(post.created_at).toLocaleDateString('pt-BR', {
@@ -817,6 +904,14 @@ class AcolheBemApp {
             replyBtn.addEventListener('click', async () => {
                 const content = replyInput.value.trim();
                 if (!content) return;
+
+                // Content filter check
+                const filterResult = ContentFilter.check(content);
+                if (filterResult.blocked) {
+                    alert(ContentFilter.message(filterResult.type));
+                    return;
+                }
+
                 replyBtn.disabled = true;
                 const { reply, error } = await Feed.createReply(post.id, content);
                 replyBtn.disabled = false;
@@ -860,7 +955,8 @@ class AcolheBemApp {
             avatarHTML = photo
                 ? `<img src="${photo}" alt="${name}">`
                 : `<span class="avatar-initial">${initial}</span>`;
-            displayName = this.escapeHTML(name);
+            const psiBadge = reply.author?.is_psi ? ' <span class="psi-badge">Psi.</span>' : '';
+            displayName = this.escapeHTML(name) + psiBadge;
         }
 
         const date = new Date(reply.created_at).toLocaleDateString('pt-BR', {
@@ -1715,9 +1811,11 @@ class AcolheBemApp {
                 this.$('adminPostsPanel').style.display = tab === 'posts' ? '' : 'none';
                 this.$('adminMembersPanel').style.display = tab === 'members' ? '' : 'none';
                 this.$('adminTopicsPanel').style.display = tab === 'topics' ? '' : 'none';
+                this.$('adminPsiPanel').style.display = tab === 'psi' ? '' : 'none';
 
                 if (tab === 'members') this.loadAdminMembers();
                 if (tab === 'topics') this.loadAdminTopics();
+                if (tab === 'psi') this.loadAdminPsi();
             });
         });
 
@@ -1901,6 +1999,43 @@ class AcolheBemApp {
                 }
             });
 
+            list.appendChild(item);
+        });
+    }
+
+    async loadAdminPsi() {
+        const list = this.$('adminPsiList');
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando...</div>';
+        const psychologists = await Feed.loadPsychologists();
+
+        this.$('adminPsiCount').textContent = `${psychologists.length} psicologos cadastrados`;
+        list.innerHTML = '';
+
+        psychologists.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'admin-member-item';
+            const date = new Date(p.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const avatar = p.photo_url
+                ? `<img src="${p.photo_url}" class="admin-member-avatar">`
+                : `<div class="admin-member-avatar admin-member-initial">${(p.name || 'P')[0].toUpperCase()}</div>`;
+            const crpLabel = p.crp ? `CRP: ${this.escapeHTML(p.crp)}` : '';
+            const location = [p.city, p.state].filter(Boolean).join(', ');
+
+            // Format WhatsApp number for link
+            const wppNumber = (p.whatsapp || '').replace(/\D/g, '');
+            const wppLink = wppNumber ? `https://wa.me/55${wppNumber}` : '';
+
+            item.innerHTML = `
+                ${avatar}
+                <div class="admin-member-info">
+                    <div class="admin-member-name">${this.escapeHTML(p.name || 'Sem nome')} <span class="psi-badge">Psi.</span></div>
+                    <div class="admin-member-detail">${this.escapeHTML(p.email || '')}</div>
+                    <div class="admin-member-detail">${date}${crpLabel ? ' · ' + crpLabel : ''}${location ? ' · ' + this.escapeHTML(location) : ''}</div>
+                </div>
+                ${wppLink ? `<a href="${wppLink}" target="_blank" rel="noopener noreferrer" class="admin-wpp-btn" title="Chamar no WhatsApp">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                </a>` : ''}
+            `;
             list.appendChild(item);
         });
     }

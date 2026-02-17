@@ -84,6 +84,44 @@ const Auth = {
   },
 
   /**
+   * Sign in as a psychologist via Cadê Meu Psi credentials.
+   * Calls the psi-auth Edge Function, then signs in locally.
+   * @param {string} email
+   * @param {string} password
+   * @returns {Promise<{user: object|null, error: string|null}>}
+   */
+  async signInPsi(email, password) {
+    const sb = window.supabaseClient;
+    const SUPABASE_URL = sb.supabaseUrl || 'https://ynsxfifbbqhstlhuilzg.supabase.co';
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/psi-auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return { user: null, error: data.error || 'Erro ao autenticar no Cade Meu Psi.' };
+      }
+
+      // Sign in with the deterministic password created by the Edge Function
+      const { data: signInData, error: signInError } = await sb.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (signInError) return { user: null, error: signInError.message };
+      return { user: signInData.user, error: null };
+    } catch (err) {
+      console.error('signInPsi error:', err);
+      return { user: null, error: 'Erro de conexao. Tente novamente.' };
+    }
+  },
+
+  /**
    * Listen for auth state changes.
    * @param {function} callback - receives (event, session)
    */

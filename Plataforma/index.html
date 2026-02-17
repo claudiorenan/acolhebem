@@ -248,6 +248,7 @@
                     <button class="admin-tab active" data-admin-tab="posts">Posts</button>
                     <button class="admin-tab" data-admin-tab="members">Membros</button>
                     <button class="admin-tab" data-admin-tab="topics">Temas & Links</button>
+                    <button class="admin-tab" data-admin-tab="psi">Psicologos</button>
                 </div>
 
                 <!-- Posts Moderation -->
@@ -265,6 +266,12 @@
                 <!-- Topics & Links Editor -->
                 <div class="admin-panel" id="adminTopicsPanel" style="display:none">
                     <div id="adminTopicsList" class="admin-topics-list"></div>
+                </div>
+
+                <!-- Psychologists List -->
+                <div class="admin-panel" id="adminPsiPanel" style="display:none">
+                    <div class="admin-members-count" id="adminPsiCount"></div>
+                    <div id="adminPsiList" class="admin-members-list"></div>
                 </div>
             </div>
 
@@ -289,9 +296,14 @@
 
             <!-- LOGIN FORM -->
             <form id="loginForm" class="auth-form">
-                <div class="auth-psi-notice">
+                <label class="psi-toggle">
+                    <input type="checkbox" id="loginPsiToggle">
+                    <span class="psi-toggle-track"><span class="psi-toggle-thumb"></span></span>
+                    <span class="psi-toggle-label">Sou Psicólogo(a)</span>
+                </label>
+                <div id="loginPsiHint" class="auth-psi-hint" style="display:none">
                     <span class="auth-psi-icon">🧑‍⚕️</span>
-                    <span>Psicologo(a)? Entre com seu e-mail do <a href="https://cademeupsi.com.br/psicologos" target="_blank" rel="noopener noreferrer">Cade Meu Psi</a></span>
+                    <span>Entre com o e-mail e senha cadastrados no <a href="https://cademeupsi.com.br" target="_blank" rel="noopener noreferrer">Cadê Meu Psi</a></span>
                 </div>
                 <div class="auth-field">
                     <label for="loginEmail">E-mail</label>
@@ -321,10 +333,22 @@
 
             <!-- SIGNUP FORM -->
             <form id="signupForm" class="auth-form" style="display:none">
-                <div class="auth-psi-notice">
-                    <span class="auth-psi-icon">🧑‍⚕️</span>
-                    <span>Psicologo(a)? Cadastre-se em <a href="https://cademeupsi.com.br/psicologos" target="_blank" rel="noopener noreferrer">cademeupsi.com.br/psicologos</a></span>
+                <label class="psi-toggle">
+                    <input type="checkbox" id="signupPsiToggle">
+                    <span class="psi-toggle-track"><span class="psi-toggle-thumb"></span></span>
+                    <span class="psi-toggle-label">Sou Psicólogo(a)</span>
+                </label>
+                <div id="signupPsiPanel" class="auth-psi-panel" style="display:none">
+                    <div class="auth-psi-panel-icon">🧑‍⚕️</div>
+                    <h3 class="auth-psi-panel-title">Cadastro para Psicólogos</h3>
+                    <p class="auth-psi-panel-text">Para participar da comunidade AcolheBem como psicólogo(a), é necessário estar cadastrado(a) no <strong>Cadê Meu Psi</strong>.</p>
+                    <p class="auth-psi-panel-text">Após o cadastro, volte aqui e faça login na aba <strong>Entrar</strong> com o toggle "Sou Psicólogo(a)" ativado.</p>
+                    <a href="https://cademeupsi.com.br/cadastrar/psicologo" target="_blank" rel="noopener noreferrer" class="auth-psi-panel-btn">
+                        Cadastrar no Cadê Meu Psi
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+                    </a>
                 </div>
+                <div id="signupFieldsWrap">
                 <div class="auth-field">
                     <label for="signupName">Nome completo *</label>
                     <input type="text" id="signupName" required placeholder="Seu nome">
@@ -389,6 +413,7 @@
                 <div id="signupError" class="auth-error"></div>
                 <div id="signupSuccess" class="auth-success"></div>
                 <button type="submit" class="auth-submit" id="signupSubmitBtn">Criar conta</button>
+                </div>
             </form>
         </div>
     </div>

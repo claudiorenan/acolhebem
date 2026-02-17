@@ -101,7 +101,7 @@ const Feed = {
 
     let query = sb
       .from('posts')
-      .select('*, profiles!posts_user_id_fkey(name, photo_url, gender, birth_year)')
+      .select('*, profiles!posts_user_id_fkey(name, photo_url, gender, birth_year, is_psi)')
       .eq('status', 'visible')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
@@ -181,7 +181,7 @@ const Feed = {
     const { data, error } = await sb
       .from('posts')
       .insert(insertData)
-      .select('*, profiles!posts_user_id_fkey(name, photo_url, gender, birth_year)')
+      .select('*, profiles!posts_user_id_fkey(name, photo_url, gender, birth_year, is_psi)')
       .single();
 
     if (error) return { post: null, error: error.message };
@@ -239,7 +239,7 @@ const Feed = {
     const sb = window.supabaseClient;
     const { data, error } = await sb
       .from('replies')
-      .select('*, profiles!replies_user_id_fkey(name, photo_url)')
+      .select('*, profiles!replies_user_id_fkey(name, photo_url, is_psi)')
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
 
@@ -262,7 +262,7 @@ const Feed = {
     const { data, error } = await sb
       .from('replies')
       .insert({ post_id: postId, user_id: user.id, content, is_anonymous: isAnonymous })
-      .select('*, profiles!replies_user_id_fkey(name, photo_url)')
+      .select('*, profiles!replies_user_id_fkey(name, photo_url, is_psi)')
       .single();
 
     if (error) return { reply: null, error: error.message };
@@ -363,5 +363,19 @@ const Feed = {
       .eq('id', user.id)
       .single();
     return data?.is_admin === true;
+  },
+
+  /**
+   * Load all psychologist profiles (is_psi = true).
+   */
+  async loadPsychologists() {
+    const sb = window.supabaseClient;
+    const { data, error } = await sb
+      .from('profiles')
+      .select('id, name, email, whatsapp, city, state, crp, photo_url, created_at')
+      .eq('is_psi', true)
+      .order('created_at', { ascending: false });
+    if (error) { console.error('loadPsychologists error:', error); return []; }
+    return data || [];
   }
 };
