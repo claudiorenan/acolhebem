@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const CADEMEUPSI_URL = "https://cademeupsi.com.br/psicologos";
+const LIVEWIRE_URL = "https://cademeupsi.com.br/livewire/update";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,210 +24,356 @@ interface Psychologist {
   hoursRemaining: number;
 }
 
+const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+/** Parse cards from listing HTML using wire:key blocks */
+function parseCardsFromListing(html: string): Psychologist[] {
+  const results: Psychologist[] = [];
+
+  // Find all card positions by wire:key="NNNN" (3-6 digit numeric IDs)
+  const cardRegex = /wire:key="(\d{3,6})"/g;
+  const positions: { id: string; start: number }[] = [];
+  let match;
+  while ((match = cardRegex.exec(html)) !== null) {
+    positions.push({ id: match[1], start: match.index });
+  }
+
+  for (let i = 0; i < positions.length; i++) {
+    const { id, start } = positions[i];
+    const end = i + 1 < positions.length ? positions[i + 1].start : start + 5000;
+    const card = html.substring(start, end);
+
+    // Profile URL + slug
+    const slugMatch = card.match(/\/psicologo\/([a-z0-9-]+-\d+)/);
+    if (!slugMatch) continue;
+    const slug = slugMatch[1];
+    const profileUrl = `https://cademeupsi.com.br/psicologo/${slug}`;
+
+    // Name (inside the <a> with hover:underline)
+    let name = "";
+    const nameMatch = card.match(/hover:underline">\s*([^<]+)/);
+    if (nameMatch) name = nameMatch[1].trim();
+    if (!name) {
+      const slugName = slug.replace(/-\d+$/, "").replace(/-/g, " ");
+      name = slugName.replace(/\b\w/g, (c: string) => c.toUpperCase());
+    }
+    // Fix ALL CAPS names
+    if (name === name.toUpperCase() && name.length > 2) {
+      name = name.toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase());
+    }
+
+    // Photo (background-image URL)
+    let photo = "";
+    const bgMatch = card.match(/background-image:url\(\s*(https:\/\/cademeupsi\.com\.br\/storage\/users\/[^)]+)/);
+    if (bgMatch) photo = bgMatch[1].trim();
+
+    // CRP
+    let crp = "";
+    const crpMatch = card.match(/<span[^>]*>(\d{2}\/\d{3,6})<\/span>/);
+    if (crpMatch) crp = crpMatch[1];
+
+    // Description (short, from the <p> tag)
+    let description = "";
+    const descMatch = card.match(/<p[^>]*class="pointer-events-none[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/p>/);
+    if (descMatch) {
+      description = descMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 200);
+    }
+
+    // Available
+    const available = card.includes("Disponível hoje");
+
+    // WhatsApp URL (constructed from numeric ID)
+    const whatsappUrl = `https://cademeupsi.com.br/whatsapp/${id}`;
+
+    results.push({
+      name,
+      photo,
+      crp,
+      profileUrl,
+      description,
+      abordagem: "",
+      especialidade: "",
+      atendimento: "",
+      whatsappUrl,
+      whatsappNumber: "",
+      available,
+      hoursRemaining: -1,
+    });
+  }
+
+  return results;
+}
+
+/** Enrich available psychologists by fetching their individual profile pages */
+async function enrichAvailable(psychologists: Psychologist[]): Promise<void> {
+  const available = psychologists.filter((p) => p.available);
+  if (available.length === 0) return;
+
+  console.log(`Enriching ${available.length} available psychologists from profile pages`);
+
+  const results = await Promise.allSettled(
+    available.map(async (psi) => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 10000);
+      try {
+        const res = await fetch(psi.profileUrl, {
+          headers: { "User-Agent": BROWSER_UA, Accept: "text/html" },
+          signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        if (!res.ok) return;
+        const html = await res.text();
+
+        // Abordagem
+        const aboMatch = html.match(/Abordagem[^<]*<\/[^>]+>\s*<[^>]+>\s*([^<]+)/i);
+        if (aboMatch) psi.abordagem = aboMatch[1].trim();
+
+        // Atendimento
+        const ateMatch = html.match(/Atendimento[^<]*<\/[^>]+>\s*<[^>]+>\s*([^<]+)/i);
+        if (ateMatch) psi.atendimento = ateMatch[1].trim();
+
+        // Especialidade
+        const espMatch = html.match(/Especialidade[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
+        if (espMatch) {
+          psi.especialidade = espMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 300);
+        }
+
+        // Full description
+        const descMatch = html.match(/Sobre mim[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
+        if (descMatch) {
+          psi.description = descMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 500);
+        }
+
+        // Availability hours
+        const timeMatch = html.match(/(\d+)h\s*(\d+)?\s*min\s*restante/i);
+        if (timeMatch) {
+          const h = parseInt(timeMatch[1], 10);
+          const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+          psi.hoursRemaining = h + m / 60;
+        }
+
+        // WhatsApp number (personal - from wPsy field)
+        const wPsyMatch = html.match(/&quot;wPsy&quot;:&quot;[^&]*wa\.me[^&]*?(\d{10,15})/);
+        if (wPsyMatch) {
+          psi.whatsappNumber = wPsyMatch[1];
+        } else {
+          // Fallback: phone field
+          const phoneMatch = html.match(/&quot;phone&quot;:&quot;\((\d{2})\)\s*(\d{4,5})-?(\d{4})&quot;/);
+          if (phoneMatch) {
+            psi.whatsappNumber = `55${phoneMatch[1]}${phoneMatch[2]}${phoneMatch[3]}`;
+          }
+        }
+
+        // WhatsApp URL from profile page (more reliable)
+        const wppMatch = html.match(/href="((?:https:\/\/cademeupsi\.com\.br)?\/whatsapp\/\d+)"/i);
+        if (wppMatch) {
+          psi.whatsappUrl = wppMatch[1].startsWith("http")
+            ? wppMatch[1]
+            : `https://cademeupsi.com.br${wppMatch[1]}`;
+        }
+      } catch {
+        clearTimeout(timer);
+      }
+    }),
+  );
+
+  const enriched = results.filter((r) => r.status === "fulfilled").length;
+  console.log(`Enriched ${enriched}/${available.length} available psychologists`);
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   if (req.method !== "GET") {
-    return new Response(
-      JSON.stringify({ error: "Method not allowed" }),
-      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
-    // 1. Fetch listing page to discover all profile URLs
-    const response = await fetch(CADEMEUPSI_URL, {
-      headers: {
-        "User-Agent": "AcolheBem-Bot/1.0",
-        "Accept": "text/html,application/xhtml+xml",
-      },
+    // ============================================================
+    // STEP 1: Fetch listing page
+    // ============================================================
+    const initialRes = await fetch(CADEMEUPSI_URL, {
+      headers: { "User-Agent": BROWSER_UA, Accept: "text/html" },
     });
 
-    if (!response.ok) {
+    if (!initialRes.ok) {
       return new Response(
         JSON.stringify({ psychologists: [], count: 0, fetchedAt: new Date().toISOString() }),
         {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
-        }
+        },
       );
     }
 
-    const html = await response.text();
+    const initialHtml = await initialRes.text();
 
-    // 2. Extract ALL unique /psicologo/ URLs from the full HTML
-    //    The listing page uses Livewire infinite scroll (perPage=12),
-    //    but ALL profile URLs are present in the HTML (links, DESTAQUE, etc.)
-    const urlRegex = /href="((?:https:\/\/cademeupsi\.com\.br)?\/psicologo\/[^"]+)"/g;
-    const seenUrls = new Set<string>();
-    const profileEntries: { profileUrl: string; slug: string; numericId: string }[] = [];
-    let urlMatch;
-
-    while ((urlMatch = urlRegex.exec(html)) !== null) {
-      const href = urlMatch[1];
-      const profileUrl = href.startsWith("http")
-        ? href
-        : `https://cademeupsi.com.br${href}`;
-
-      if (seenUrls.has(profileUrl)) continue;
-      seenUrls.add(profileUrl);
-
-      const slugMatch = profileUrl.match(/\/psicologo\/(.+)$/);
-      const idMatch = profileUrl.match(/-(\d+)$/);
-      if (!slugMatch) continue;
-
-      profileEntries.push({
-        profileUrl,
-        slug: slugMatch[1],
-        numericId: idMatch ? idMatch[1] : "",
-      });
-    }
-
-    // 3. Fetch each profile page in parallel to extract all data + availability
-    const psychologists: Psychologist[] = [];
-
-    const results = await Promise.allSettled(
-      profileEntries.map(async (entry) => {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 8000);
-        try {
-          const profRes = await fetch(entry.profileUrl, {
-            headers: { "User-Agent": "AcolheBem-Bot/1.0", "Accept": "text/html" },
-            signal: ctrl.signal,
-          });
-          clearTimeout(timer);
-          if (!profRes.ok) return null;
-          const profHtml = await profRes.text();
-
-          // --- Name ---
-          let name = "";
-          const h1Match = profHtml.match(/<h1[^>]*>\s*([^<]+)/);
-          if (h1Match) {
-            name = h1Match[1].trim();
-          }
-          if (!name) {
-            // Fallback: extract from slug
-            const slugName = entry.slug.replace(/-\d+$/, "").replace(/-/g, " ");
-            name = slugName.replace(/\b\w/g, c => c.toUpperCase());
-          }
-          // Normalize casing (some are ALL CAPS)
-          if (name === name.toUpperCase() && name.length > 2) {
-            name = name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-          }
-
-          // --- Photo ---
-          let photo = "";
-          const imgMatch = profHtml.match(/<img[^>]*src="(https:\/\/cademeupsi\.com\.br\/storage\/users\/[^"]+)"/);
-          if (imgMatch) {
-            photo = imgMatch[1];
-          } else {
-            const bgMatch = profHtml.match(/background-image:\s*url\(\s*(https:\/\/cademeupsi\.com\.br\/storage\/users\/[^)]+)\s*\)/);
-            if (bgMatch) photo = bgMatch[1].trim();
-          }
-
-          // --- CRP ---
-          let crp = "";
-          const crpMatch = profHtml.match(/CRP:?\s*<\/\w+>\s*<\w+[^>]*>\s*(\d{2}\/\d{3,6})/i);
-          if (crpMatch) {
-            crp = crpMatch[1];
-          } else {
-            const crpFallback = profHtml.match(/(\d{2}\/\d{3,6})/);
-            if (crpFallback) crp = crpFallback[1];
-          }
-
-          // --- Helper: extract labeled field ---
-          const extractField = (label: string): string => {
-            const re = new RegExp(label + '[^<]*<\\/[^>]+>\\s*<[^>]+>\\s*([^<]+)', 'i');
-            const m = profHtml.match(re);
-            return m ? m[1].trim() : "";
-          };
-
-          // --- Abordagem ---
-          const abordagem = extractField("Abordagem");
-
-          // --- Atendimento ---
-          const atendimento = extractField("Atendimento");
-
-          // --- Especialidade ---
-          let especialidade = "";
-          const espMatch = profHtml.match(/Especialidade[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
-          if (espMatch) {
-            especialidade = espMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 300);
-          }
-
-          // --- Description ---
-          let description = "";
-          const descMatch = profHtml.match(/Sobre mim[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
-          if (descMatch) {
-            description = descMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 200);
-          }
-
-          // --- Availability: check for "Xh Ymin restante" pattern ---
-          let available = false;
-          let hoursRemaining = -1;
-          const timeMatch = profHtml.match(/(\d+)h\s*(\d+)?\s*min\s*restante/i);
-          if (timeMatch) {
-            available = true;
-            const h = parseInt(timeMatch[1], 10);
-            const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
-            hoursRemaining = h + m / 60;
-          }
-          // Also check "disponibilidade de agenda" as backup
-          if (!available && /disponibilidade\s+de\s+agenda/i.test(profHtml)) {
-            available = true;
-          }
-
-          // --- WhatsApp number (personal, from wPsy field in embedded JSON) ---
-          let whatsappNumber = "";
-          // wPsy contains the psychologist's personal wa.me link: &quot;wPsy&quot;:&quot;https:\/\/wa.me\/5517996578809?text=Oi&quot;
-          const wPsyMatch = profHtml.match(/&quot;wPsy&quot;:&quot;[^&]*wa\.me[^&]*?(\d{10,15})/);
-          if (wPsyMatch) {
-            whatsappNumber = wPsyMatch[1];
-          } else {
-            // Fallback: extract from phone field and normalize to international format
-            const phoneMatch = profHtml.match(/&quot;phone&quot;:&quot;\((\d{2})\)\s*(\d{4,5})-?(\d{4})&quot;/);
-            if (phoneMatch) {
-              whatsappNumber = `55${phoneMatch[1]}${phoneMatch[2]}${phoneMatch[3]}`;
-            }
-          }
-
-          // --- WhatsApp URL (fallback redirect link) ---
-          let whatsappUrl = "";
-          const wppMatch = profHtml.match(/href="((?:https:\/\/cademeupsi\.com\.br)?\/whatsapp\/\d+)"/i);
-          if (wppMatch) {
-            whatsappUrl = wppMatch[1].startsWith("http")
-              ? wppMatch[1]
-              : `https://cademeupsi.com.br${wppMatch[1]}`;
-          } else if (entry.numericId) {
-            whatsappUrl = `https://cademeupsi.com.br/whatsapp/${entry.numericId}`;
-          }
-
-          return {
-            name, photo, crp, profileUrl: entry.profileUrl,
-            description, abordagem, especialidade, atendimento,
-            whatsappUrl, whatsappNumber, available, hoursRemaining,
-          } as Psychologist;
-        } catch {
-          clearTimeout(timer);
-          return null;
-        }
-      })
-    );
-
-    // Collect successful results
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value) {
-        psychologists.push(r.value);
+    // ============================================================
+    // STEP 2: Parse cookies + XSRF + Livewire snapshot
+    // ============================================================
+    const cookies: Record<string, string> = {};
+    const rawHeaders = initialRes.headers;
+    const setCookies = (rawHeaders as any).getSetCookie?.() || [];
+    for (const sc of setCookies) {
+      const nv = sc.split(";")[0];
+      const eq = nv.indexOf("=");
+      if (eq > 0) {
+        cookies[nv.substring(0, eq).trim()] = nv.substring(eq + 1).trim();
       }
     }
+    if (!cookies["XSRF-TOKEN"]) {
+      const raw = rawHeaders.get("set-cookie") || "";
+      const xm = raw.match(/XSRF-TOKEN=([^;]+)/);
+      if (xm) cookies["XSRF-TOKEN"] = xm[1];
+      const sm = raw.match(/cade_meu_psi_session=([^;]+)/);
+      if (sm) cookies["cade_meu_psi_session"] = sm[1];
+    }
+
+    const xsrfToken = decodeURIComponent(cookies["XSRF-TOKEN"] || "");
+    const cookieStr = Object.entries(cookies)
+      .map(([k, v]) => `${k}=${v}`)
+      .join("; ");
+
+    // Find the psychologists Livewire snapshot
+    let currentSnap = "";
+    const snapMatches = initialHtml.match(/wire:snapshot="([^"]+)"/g);
+    if (snapMatches) {
+      for (const sm of snapMatches) {
+        const raw = sm.replace('wire:snapshot="', "").replace(/"$/, "");
+        const decoded = raw.replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+        if (decoded.includes("web.psychologists")) {
+          currentSnap = decoded;
+          break;
+        }
+      }
+    }
+
+    // ============================================================
+    // STEP 3: Call loadMore() to get all 115+ cards
+    //         perPage doubles each call: 12→24→48→96→192→...
+    //         We need about 4-5 calls until perPage > total cards
+    // ============================================================
+    let fullHtml = initialHtml;
+
+    if (currentSnap && xsrfToken) {
+      let prevPerPage = 12;
+      let prevCardCount = 0;
+      let stableCount = 0; // how many times card count stayed the same
+
+      for (let i = 0; i < 10; i++) {
+        try {
+          const payload = JSON.stringify({
+            _token: "",
+            components: [
+              {
+                snapshot: currentSnap,
+                updates: {},
+                calls: [{ path: "", method: "loadMore", params: [] }],
+              },
+            ],
+          });
+
+          const lwRes = await fetch(LIVEWIRE_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Livewire": "",
+              "X-XSRF-TOKEN": xsrfToken,
+              Cookie: cookieStr,
+              "User-Agent": BROWSER_UA,
+              Accept: "application/json",
+              Referer: CADEMEUPSI_URL,
+            },
+            body: payload,
+          });
+
+          if (!lwRes.ok) {
+            console.log(`Livewire call ${i} failed: ${lwRes.status}`);
+            break;
+          }
+
+          const lwData = await lwRes.json();
+          const compHtml: string = lwData?.components?.[0]?.effects?.html || "";
+          const newSnap = lwData?.components?.[0]?.snapshot;
+
+          if (newSnap) {
+            currentSnap = typeof newSnap === "string" ? newSnap : JSON.stringify(newSnap);
+          }
+
+          // Check current perPage from snapshot
+          let curPerPage = prevPerPage;
+          try {
+            const snapObj = JSON.parse(typeof currentSnap === "string" ? currentSnap : "{}");
+            curPerPage = snapObj?.data?.perPage || prevPerPage;
+          } catch {
+            // ignore
+          }
+
+          // Count unique profile slugs in response (more reliable than wire:key)
+          const slugSet = new Set<string>();
+          const slugRe = /\/psicologo\/([a-z0-9-]+-\d+)/g;
+          let sm;
+          while ((sm = slugRe.exec(compHtml)) !== null) slugSet.add(sm[1]);
+          const uniqueProfiles = slugSet.size;
+
+          console.log(`loadMore #${i}: perPage=${curPerPage}, profiles=${uniqueProfiles}, html=${compHtml.length}`);
+
+          if (compHtml.length > 0) {
+            fullHtml = compHtml;
+          }
+
+          // Stop if perPage didn't grow
+          if (curPerPage === prevPerPage) {
+            console.log(`perPage unchanged at ${curPerPage}, stopping`);
+            break;
+          }
+
+          // Stop if profile count stabilized for 2 consecutive calls
+          if (uniqueProfiles === prevCardCount && uniqueProfiles > 0) {
+            stableCount++;
+            if (stableCount >= 2) {
+              console.log(`Profile count stable at ${uniqueProfiles}, stopping`);
+              break;
+            }
+          } else {
+            stableCount = 0;
+          }
+
+          prevPerPage = curPerPage;
+          prevCardCount = uniqueProfiles;
+        } catch (err) {
+          console.log(`Livewire call ${i} error: ${err}`);
+          break;
+        }
+      }
+    } else {
+      console.log(`Livewire scroll skipped: snap=${!!currentSnap}, xsrf=${!!xsrfToken}`);
+    }
+
+    // ============================================================
+    // STEP 4: Parse all cards from the listing HTML
+    // ============================================================
+    const psychologists = parseCardsFromListing(fullHtml);
+    console.log(`Parsed ${psychologists.length} psychologists from listing (${psychologists.filter((p) => p.available).length} available)`);
+
+    // ============================================================
+    // STEP 5: Enrich available psychologists with profile details
+    //         (WhatsApp personal number, abordagem, etc.)
+    // ============================================================
+    await enrichAvailable(psychologists);
 
     // Sort: available first, then by name
     psychologists.sort((a, b) => {
       if (a.available !== b.available) return a.available ? -1 : 1;
       return a.name.localeCompare(b.name, "pt-BR");
     });
+
+    console.log(`Returning ${psychologists.length} psychologists`);
 
     return new Response(
       JSON.stringify({
@@ -241,7 +388,7 @@ serve(async (req: Request) => {
           "Content-Type": "application/json",
           "Cache-Control": "public, max-age=300",
         },
-      }
+      },
     );
   } catch (err) {
     console.error("psi-available error:", err);
@@ -250,7 +397,7 @@ serve(async (req: Request) => {
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
-      }
+      },
     );
   }
 });
