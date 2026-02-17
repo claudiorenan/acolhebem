@@ -1659,14 +1659,138 @@ img,svg{display:block}
 }
 .psi-cta-link:hover{color:var(--emerald-d)}
 
-/* Psi Section Title (All Active) */
+/* Psi Section Titles */
 .psi-section-title{
     font-family:var(--f-display);
     font-size:1.1rem;font-weight:700;
     color:var(--ink);
-    margin:28px 0 16px;
+    margin:24px 0 12px;
     padding-bottom:8px;
     border-bottom:2px solid var(--ink-10);
+}
+.psi-section-title-urgent{
+    color:var(--emerald-d);
+    border-color:var(--emerald);
+}
+
+/* Featured Grid — available psychologists */
+.psi-featured-grid{
+    display:flex;flex-direction:column;gap:16px;
+}
+
+/* Featured Card */
+.psi-featured{
+    background:var(--white);
+    border:1.5px solid var(--emerald);
+    border-radius:var(--r-lg);
+    padding:20px;
+    display:flex;flex-direction:column;gap:14px;
+    animation:psiCardIn .4s var(--ease-out) both;
+    box-shadow:0 2px 12px rgba(47,111,100,.08);
+}
+.psi-featured-top{
+    display:flex;align-items:center;gap:16px;
+}
+.psi-featured-photo{
+    width:88px;height:88px;border-radius:50%;
+    object-fit:cover;flex-shrink:0;
+    background:var(--ink-05);
+    border:3px solid var(--emerald-l);
+}
+.psi-featured-photo-fallback{
+    width:88px;height:88px;border-radius:50%;flex-shrink:0;
+    background:var(--ink-05);border:3px solid var(--emerald-l);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink-20);
+}
+.psi-featured-photo-fallback svg{width:40px;height:40px}
+.psi-featured-info{flex:1;min-width:0}
+.psi-featured-name{
+    font-family:var(--f-display);
+    font-size:1.08rem;font-weight:700;color:var(--ink);
+    line-height:1.3;
+}
+.psi-featured-crp{
+    font-size:.78rem;font-weight:600;
+    color:var(--ink-40);margin-top:2px;
+}
+.psi-featured-status{
+    display:flex;align-items:center;gap:6px;
+    font-size:.78rem;font-weight:600;
+    color:#16a34a;margin-top:6px;
+}
+.psi-featured-status-dot{
+    width:9px;height:9px;border-radius:50%;
+    background:#16a34a;
+    animation:breathe 2s ease-in-out infinite;
+}
+.psi-featured-tags{
+    display:flex;flex-wrap:wrap;gap:6px;
+}
+.psi-featured-tag{
+    display:inline-block;
+    padding:3px 12px;border-radius:100px;
+    background:var(--emerald-l);color:var(--emerald-d);
+    font-size:.78rem;font-weight:600;
+}
+.psi-featured-tag-outline{
+    background:transparent;
+    border:1.5px solid var(--ink-10);
+    color:var(--ink-70);
+}
+.psi-featured-esp{
+    font-size:.82rem;color:var(--ink-70);
+    line-height:1.5;margin:0;
+}
+.psi-featured-desc{
+    font-size:.82rem;color:var(--ink-40);
+    line-height:1.5;margin:0;
+}
+.psi-featured-actions{
+    display:flex;gap:8px;margin-top:2px;
+}
+.psi-featured-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    flex:1;padding:11px 14px;
+    border-radius:var(--r-md);
+    font-size:.84rem;font-weight:700;
+    text-decoration:none;
+    transition:all var(--dur-fast) var(--ease-out);
+    cursor:pointer;line-height:1.2;
+}
+.psi-featured-btn svg{width:16px;height:16px;flex-shrink:0}
+.psi-featured-btn-wpp{
+    background:var(--wpp);color:var(--white);
+    box-shadow:0 2px 8px rgba(37,211,102,.25);
+}
+.psi-featured-btn-wpp:hover{
+    background:var(--wpp-d);
+    transform:translateY(-1px);
+    box-shadow:0 4px 12px rgba(37,211,102,.35);
+}
+.psi-featured-btn-wpp{
+    width:100%;
+}
+.psi-featured-btn-acessivel{
+    background:transparent;
+    color:var(--emerald);
+    border:2px solid var(--emerald);
+}
+.psi-featured-btn-acessivel:hover{
+    background:var(--emerald-l);
+    transform:translateY(-1px);
+}
+.psi-featured-btn-site{
+    background:var(--ink-05);
+    color:#b91c1c;
+    border:1.5px dashed #fca5a5;
+    cursor:not-allowed;
+    opacity:.7;
+}
+.psi-featured-btn-site svg{stroke:#b91c1c}
+.psi-featured-btn-site:hover{
+    transform:none;
+    background:var(--ink-05);
 }
 
 /* Active (non-available) status color */
@@ -1836,6 +1960,7 @@ img,svg{display:block}
 .psi-card-btn-wpp{
     background:var(--wpp);color:var(--white);
     box-shadow:0 2px 8px rgba(37,211,102,.25);
+    width:100%;
 }
 .psi-card-btn-wpp:hover{
     background:var(--wpp-d);
@@ -1856,13 +1981,13 @@ img,svg{display:block}
 .psi-card-btn-acessivel:active{transform:translateY(0)}
 
 .psi-card-btn-site{
-    width:100%;
     background:var(--ink-05);
-    color:var(--ink-40);
-    border:1.5px dashed var(--ink-20);
+    color:#b91c1c;
+    border:1.5px dashed #fca5a5;
     cursor:not-allowed;
     opacity:.7;
 }
+.psi-card-btn-site svg{stroke:#b91c1c}
 .psi-card-btn-site:hover{
     transform:none;
     background:var(--ink-05);
@@ -1917,6 +2042,19 @@ img,svg{display:block}
     .psi-available-footer{margin-top:16px}
     .psi-cta-btn{padding:10px 18px;font-size:.82rem;width:100%;justify-content:center}
     .psi-retry-btn{font-size:.8rem;padding:7px 16px}
+    .psi-featured-grid{gap:12px}
+    .psi-featured{padding:16px;gap:12px}
+    .psi-featured-photo,.psi-featured-photo-fallback{width:72px;height:72px;border-width:2px}
+    .psi-featured-photo-fallback svg{width:32px;height:32px}
+    .psi-featured-top{gap:12px}
+    .psi-featured-name{font-size:.96rem}
+    .psi-featured-crp{font-size:.72rem}
+    .psi-featured-status{font-size:.72rem}
+    .psi-featured-tag{font-size:.72rem;padding:2px 10px}
+    .psi-featured-esp,.psi-featured-desc{font-size:.78rem}
+    .psi-featured-actions{flex-direction:column}
+    .psi-featured-btn{font-size:.82rem;padding:10px 12px}
+    .psi-section-title{font-size:1rem;margin:18px 0 10px}
 }
 
 /* Very small screens (< 380px) — icon-only tabs */

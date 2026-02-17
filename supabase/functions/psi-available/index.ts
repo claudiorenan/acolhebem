@@ -18,7 +18,9 @@ interface Psychologist {
   especialidade: string;
   atendimento: string;
   whatsappUrl: string;
+  whatsappNumber: string;
   available: boolean;
+  hoursRemaining: number;
 }
 
 serve(async (req: Request) => {
@@ -34,6 +36,7 @@ serve(async (req: Request) => {
   }
 
   try {
+    // 1. Fetch listing page to discover all profile URLs
     const response = await fetch(CADEMEUPSI_URL, {
       headers: {
         "User-Agent": "AcolheBem-Bot/1.0",
@@ -52,31 +55,17 @@ serve(async (req: Request) => {
     }
 
     const html = await response.text();
-    const psychologists: Psychologist[] = [];
+
+    // 2. Extract ALL unique /psicologo/ URLs from the full HTML
+    //    The listing page uses Livewire infinite scroll (perPage=12),
+    //    but ALL profile URLs are present in the HTML (links, DESTAQUE, etc.)
+    const urlRegex = /href="((?:https:\/\/cademeupsi\.com\.br)?\/psicologo\/[^"]+)"/g;
     const seenUrls = new Set<string>();
+    const profileEntries: { profileUrl: string; slug: string; numericId: string }[] = [];
+    let urlMatch;
 
-    // Each card is a <div wire:key="ID"> block containing:
-    //   - <a href="/psicologo/slug-ID"> wrapping the card
-    //   - background-image:url(https://cademeupsi.com.br/storage/users/HASH.jpg) for the photo
-    //   - "🟢 Disponível hoje" in a <span> if available
-    //   - CRP number in a <span> (number and "CRP" on separate spans)
-    //   - Name in an <a> tag with uppercase text
-    //   - Description in a <p> tag after the card
-
-    // Split by wire:key to isolate each card block
-    const cardBlocks = html.split(/wire:key="/);
-
-    for (let i = 1; i < cardBlocks.length; i++) {
-      const block = cardBlocks[i];
-
-      // Check if this card is available today
-      const isAvailable = /Dispon[ií]vel\s+hoje/i.test(block);
-
-      // Extract profile URL
-      const hrefMatch = block.match(/href="([^"]*\/psicologo\/[^"]*)"/);
-      if (!hrefMatch) continue;
-
-      const href = hrefMatch[1];
+    while ((urlMatch = urlRegex.exec(html)) !== null) {
+      const href = urlMatch[1];
       const profileUrl = href.startsWith("http")
         ? href
         : `https://cademeupsi.com.br${href}`;
@@ -84,102 +73,160 @@ serve(async (req: Request) => {
       if (seenUrls.has(profileUrl)) continue;
       seenUrls.add(profileUrl);
 
-      // Extract photo from background-image:url(...)
-      let photo = "";
-      const bgMatch = block.match(/background-image:\s*url\(\s*([^)]+)\s*\)/);
-      if (bgMatch) {
-        photo = bgMatch[1].trim();
-        if (!photo.startsWith("http")) {
-          photo = `https://cademeupsi.com.br${photo}`;
-        }
-      }
+      const slugMatch = profileUrl.match(/\/psicologo\/(.+)$/);
+      const idMatch = profileUrl.match(/-(\d+)$/);
+      if (!slugMatch) continue;
 
-      // Extract name: the name <a> has class "text-md" (DESTAQUE <a> has "text-xs")
-      let name = "";
-      const nameMatch = block.match(/<a[^>]*class="[^"]*text-md[^"]*"[^>]*>\s*([^<]+)/);
-      if (nameMatch) {
-        const rawName = nameMatch[1].trim();
-        if (rawName.length > 2) {
-          name = rawName.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-        }
-      }
-
-      // Fallback: extract from URL slug
-      if (!name) {
-        const slugMatch = href.match(/\/psicologo\/([^/]+?)(?:-\d+)?$/);
-        if (slugMatch) {
-          name = slugMatch[1].replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-        }
-      }
-
-      if (!name) continue;
-
-      // Extract CRP — number is in one span, "CRP" in another
-      let crp = "";
-      const crpMatch = block.match(/(\d{2}\/\d{3,6})\s*<\/span>\s*<span[^>]*>\s*CRP/);
-      if (crpMatch) {
-        crp = crpMatch[1];
-      } else {
-        // Fallback: simpler pattern
-        const crpFallback = block.match(/(\d{2}\/\d{3,6})/);
-        if (crpFallback) crp = crpFallback[1];
-      }
-
-      // Extract description from <p> tag
-      let description = "";
-      const descMatch = block.match(/<p[^>]*class="[^"]*text-sm[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/p>/);
-      if (descMatch) {
-        description = descMatch[1]
-          .replace(/<[^>]+>/g, "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .substring(0, 200);
-      }
-
-      // Extract numeric ID from slug for WhatsApp URL
-      const idMatch = href.match(/-(\d+)$/);
-      const whatsappUrl = idMatch
-        ? `https://cademeupsi.com.br/whatsapp/${idMatch[1]}`
-        : "";
-
-      psychologists.push({ name, photo, crp, profileUrl, description, abordagem: "", especialidade: "", atendimento: "", whatsappUrl, available: isAvailable });
+      profileEntries.push({
+        profileUrl,
+        slug: slugMatch[1],
+        numericId: idMatch ? idMatch[1] : "",
+      });
     }
 
-    // Fetch individual profiles in parallel to extract abordagem
-    await Promise.allSettled(
-      psychologists.map(async (psi, idx) => {
+    // 3. Fetch each profile page in parallel to extract all data + availability
+    const psychologists: Psychologist[] = [];
+
+    const results = await Promise.allSettled(
+      profileEntries.map(async (entry) => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
         try {
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), 5000);
-          const profRes = await fetch(psi.profileUrl, {
+          const profRes = await fetch(entry.profileUrl, {
             headers: { "User-Agent": "AcolheBem-Bot/1.0", "Accept": "text/html" },
             signal: ctrl.signal,
           });
           clearTimeout(timer);
-          if (!profRes.ok) return;
+          if (!profRes.ok) return null;
           const profHtml = await profRes.text();
 
-          // Helper: extract a labeled field value from profile HTML
+          // --- Name ---
+          let name = "";
+          const h1Match = profHtml.match(/<h1[^>]*>\s*([^<]+)/);
+          if (h1Match) {
+            name = h1Match[1].trim();
+          }
+          if (!name) {
+            // Fallback: extract from slug
+            const slugName = entry.slug.replace(/-\d+$/, "").replace(/-/g, " ");
+            name = slugName.replace(/\b\w/g, c => c.toUpperCase());
+          }
+          // Normalize casing (some are ALL CAPS)
+          if (name === name.toUpperCase() && name.length > 2) {
+            name = name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+          }
+
+          // --- Photo ---
+          let photo = "";
+          const imgMatch = profHtml.match(/<img[^>]*src="(https:\/\/cademeupsi\.com\.br\/storage\/users\/[^"]+)"/);
+          if (imgMatch) {
+            photo = imgMatch[1];
+          } else {
+            const bgMatch = profHtml.match(/background-image:\s*url\(\s*(https:\/\/cademeupsi\.com\.br\/storage\/users\/[^)]+)\s*\)/);
+            if (bgMatch) photo = bgMatch[1].trim();
+          }
+
+          // --- CRP ---
+          let crp = "";
+          const crpMatch = profHtml.match(/CRP:?\s*<\/\w+>\s*<\w+[^>]*>\s*(\d{2}\/\d{3,6})/i);
+          if (crpMatch) {
+            crp = crpMatch[1];
+          } else {
+            const crpFallback = profHtml.match(/(\d{2}\/\d{3,6})/);
+            if (crpFallback) crp = crpFallback[1];
+          }
+
+          // --- Helper: extract labeled field ---
           const extractField = (label: string): string => {
             const re = new RegExp(label + '[^<]*<\\/[^>]+>\\s*<[^>]+>\\s*([^<]+)', 'i');
             const m = profHtml.match(re);
             return m ? m[1].trim() : "";
           };
 
-          psychologists[idx].abordagem = extractField("Abordagem");
-          psychologists[idx].atendimento = extractField("Atendimento");
+          // --- Abordagem ---
+          const abordagem = extractField("Abordagem");
 
-          // Especialidade — may be a longer text block
+          // --- Atendimento ---
+          const atendimento = extractField("Atendimento");
+
+          // --- Especialidade ---
+          let especialidade = "";
           const espMatch = profHtml.match(/Especialidade[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
           if (espMatch) {
-            psychologists[idx].especialidade = espMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 300);
+            especialidade = espMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 300);
           }
 
+          // --- Description ---
+          let description = "";
+          const descMatch = profHtml.match(/Sobre mim[^<]*<\/[^>]+>\s*<[^>]+>([\s\S]*?)<\/[^>]+>/i);
+          if (descMatch) {
+            description = descMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().substring(0, 200);
+          }
+
+          // --- Availability: check for "Xh Ymin restante" pattern ---
+          let available = false;
+          let hoursRemaining = -1;
+          const timeMatch = profHtml.match(/(\d+)h\s*(\d+)?\s*min\s*restante/i);
+          if (timeMatch) {
+            available = true;
+            const h = parseInt(timeMatch[1], 10);
+            const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+            hoursRemaining = h + m / 60;
+          }
+          // Also check "disponibilidade de agenda" as backup
+          if (!available && /disponibilidade\s+de\s+agenda/i.test(profHtml)) {
+            available = true;
+          }
+
+          // --- WhatsApp number (personal, from wPsy field in embedded JSON) ---
+          let whatsappNumber = "";
+          // wPsy contains the psychologist's personal wa.me link: &quot;wPsy&quot;:&quot;https:\/\/wa.me\/5517996578809?text=Oi&quot;
+          const wPsyMatch = profHtml.match(/&quot;wPsy&quot;:&quot;[^&]*wa\.me[^&]*?(\d{10,15})/);
+          if (wPsyMatch) {
+            whatsappNumber = wPsyMatch[1];
+          } else {
+            // Fallback: extract from phone field and normalize to international format
+            const phoneMatch = profHtml.match(/&quot;phone&quot;:&quot;\((\d{2})\)\s*(\d{4,5})-?(\d{4})&quot;/);
+            if (phoneMatch) {
+              whatsappNumber = `55${phoneMatch[1]}${phoneMatch[2]}${phoneMatch[3]}`;
+            }
+          }
+
+          // --- WhatsApp URL (fallback redirect link) ---
+          let whatsappUrl = "";
+          const wppMatch = profHtml.match(/href="((?:https:\/\/cademeupsi\.com\.br)?\/whatsapp\/\d+)"/i);
+          if (wppMatch) {
+            whatsappUrl = wppMatch[1].startsWith("http")
+              ? wppMatch[1]
+              : `https://cademeupsi.com.br${wppMatch[1]}`;
+          } else if (entry.numericId) {
+            whatsappUrl = `https://cademeupsi.com.br/whatsapp/${entry.numericId}`;
+          }
+
+          return {
+            name, photo, crp, profileUrl: entry.profileUrl,
+            description, abordagem, especialidade, atendimento,
+            whatsappUrl, whatsappNumber, available, hoursRemaining,
+          } as Psychologist;
         } catch {
-          // Fail silently — abordagem stays empty
+          clearTimeout(timer);
+          return null;
         }
       })
     );
+
+    // Collect successful results
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value) {
+        psychologists.push(r.value);
+      }
+    }
+
+    // Sort: available first, then by name
+    psychologists.sort((a, b) => {
+      if (a.available !== b.available) return a.available ? -1 : 1;
+      return a.name.localeCompare(b.name, "pt-BR");
+    });
 
     return new Response(
       JSON.stringify({
@@ -192,7 +239,7 @@ serve(async (req: Request) => {
         headers: {
           ...corsHeaders,
           "Content-Type": "application/json",
-          "Cache-Control": "public, max-age=1800",
+          "Cache-Control": "public, max-age=300",
         },
       }
     );

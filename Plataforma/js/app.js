@@ -1109,18 +1109,19 @@ class AcolheBemApp {
         const loadingEl = this.$('psiAvailableLoading');
         const errorEl = this.$('psiAvailableError');
         const emptyEl = this.$('psiAvailableEmpty');
-        const gridEl = this.$('psiAvailableGrid');
 
         // Show loading, hide others
         loadingEl.style.display = '';
         errorEl.style.display = 'none';
         emptyEl.style.display = 'none';
-        gridEl.style.display = 'none';
+        this.$('psiAvailSection').style.display = 'none';
         this.$('psiAllSection').style.display = 'none';
 
         try {
             const SUPABASE_URL = window.supabaseClient?.supabaseUrl || 'https://ynsxfifbbqhstlhuilzg.supabase.co';
-            const res = await fetch(`${SUPABASE_URL}/functions/v1/psi-available`);
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/psi-available?_t=${Date.now()}`, {
+                cache: 'no-store'
+            });
 
             if (!res.ok) throw new Error('Fetch failed');
 
@@ -1130,22 +1131,24 @@ class AcolheBemApp {
             if (!data.psychologists || data.psychologists.length === 0) {
                 emptyEl.style.display = '';
             } else {
-                const available = data.psychologists.filter(p => p.available === true);
-                const allActive = data.psychologists.filter(p => p.available !== true);
+                const available = [];
+                const active = [];
+
+                data.psychologists.forEach(p => {
+                    if (p.available === true) {
+                        available.push(p);
+                    } else {
+                        active.push(p);
+                    }
+                });
 
                 if (available.length > 0) {
-                    this.renderPsiCards(available, this.$('psiAvailableGrid'), true);
-                    gridEl.style.display = '';
-                } else {
-                    // No available field (cached response) — show all in main grid
-                    if (allActive.length === 0) {
-                        this.renderPsiCards(data.psychologists, this.$('psiAvailableGrid'), true);
-                        gridEl.style.display = '';
-                    }
+                    this.renderPsiFeaturedCards(available, this.$('psiAvailGrid'));
+                    this.$('psiAvailSection').style.display = '';
                 }
 
-                if (allActive.length > 0) {
-                    this.renderPsiCards(allActive, this.$('psiAllGrid'), false);
+                if (active.length > 0) {
+                    this.renderPsiCards(active, this.$('psiAllGrid'), false);
                     this.$('psiAllSection').style.display = '';
                 }
             }
@@ -1158,6 +1161,71 @@ class AcolheBemApp {
         }
     }
 
+    renderPsiFeaturedCards(psychologists, grid) {
+        grid.innerHTML = '';
+
+        psychologists.forEach((psi, i) => {
+            const card = document.createElement('div');
+            card.className = 'psi-featured';
+            card.style.animationDelay = `${i * 0.08}s`;
+
+            const nameEsc = this.escapeHTML(psi.name);
+            const profileUrl = this.escapeHTML(psi.profileUrl);
+            const wppMsg = encodeURIComponent(`Oi Psi. ${psi.name}, encontrei o seu perfil na plataforma AcolheBem do Cadê Meu Psi. Gostaria de saber mais sobre o atendimento.`);
+            const wppUrl = psi.whatsappNumber
+                ? `https://wa.me/${psi.whatsappNumber}?text=${wppMsg}`
+                : (psi.whatsappUrl || profileUrl);
+
+            const photoHtml = psi.photo
+                ? `<img src="${this.escapeHTML(psi.photo)}" alt="${nameEsc}" class="psi-featured-photo" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                : '';
+            const fallbackHtml = `<div class="psi-featured-photo-fallback" ${psi.photo ? 'style="display:none"' : ''}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>`;
+
+            const abordagem = psi.abordagem ? `<span class="psi-featured-tag">${this.escapeHTML(psi.abordagem)}</span>` : '';
+            const atendimento = psi.atendimento ? `<span class="psi-featured-tag psi-featured-tag-outline">${this.escapeHTML(psi.atendimento)}</span>` : '';
+            const especialidade = psi.especialidade ? `<p class="psi-featured-esp">${this.escapeHTML(psi.especialidade)}</p>` : '';
+            const desc = psi.description ? `<p class="psi-featured-desc">${this.escapeHTML(psi.description)}</p>` : '';
+
+            card.innerHTML = `
+                <div class="psi-featured-top">
+                    ${photoHtml}
+                    ${fallbackHtml}
+                    <div class="psi-featured-info">
+                        <div class="psi-featured-name">Psi. ${nameEsc}</div>
+                        ${psi.crp ? `<div class="psi-featured-crp">CRP ${this.escapeHTML(psi.crp)}</div>` : ''}
+                        <div class="psi-featured-status">
+                            <span class="psi-featured-status-dot"></span>
+                            Disponivel hoje
+                        </div>
+                    </div>
+                </div>
+                <div class="psi-featured-tags">
+                    ${abordagem}${atendimento}
+                </div>
+                ${especialidade}
+                ${desc}
+                <a href="${wppUrl}" target="_blank" rel="noopener noreferrer" class="psi-featured-btn psi-featured-btn-wpp">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    Chamar psicólogo no WhatsApp
+                </a>
+                <div class="psi-featured-actions">
+                    <a href="${profileUrl}" target="_blank" rel="noopener noreferrer" class="psi-featured-btn psi-featured-btn-acessivel">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+                        Terapia Acessível
+                    </a>
+                    <button class="psi-featured-btn psi-featured-btn-site" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        Ver Site (Psicólogo sem site)
+                    </button>
+                </div>
+            `;
+
+            grid.appendChild(card);
+        });
+    }
+
     renderPsiCards(psychologists, grid, isAvailable) {
         grid.innerHTML = '';
 
@@ -1168,7 +1236,10 @@ class AcolheBemApp {
 
             const profileUrl = this.escapeHTML(psi.profileUrl);
             const nameEsc = this.escapeHTML(psi.name);
-            const wppUrl = psi.whatsappUrl ? this.escapeHTML(psi.whatsappUrl) : profileUrl;
+            const wppMsg = encodeURIComponent(`Oi Psi. ${psi.name}, encontrei o seu perfil na plataforma AcolheBem do Cadê Meu Psi. Gostaria de saber mais sobre o atendimento.`);
+            const wppUrl = psi.whatsappNumber
+                ? `https://wa.me/${psi.whatsappNumber}?text=${wppMsg}`
+                : (psi.whatsappUrl || profileUrl);
 
             const photoHtml = psi.photo
                 ? `<img src="${this.escapeHTML(psi.photo)}" alt="${nameEsc}" class="psi-card-avatar" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
@@ -1220,20 +1291,20 @@ class AcolheBemApp {
                         ${atendimentoHtml}
                         ${especialidadeHtml}
                         ${descHtml}
+                        <a href="${wppUrl}" target="_blank" rel="noopener noreferrer" class="psi-card-btn psi-card-btn-wpp" onclick="event.stopPropagation()">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            Chamar psicólogo no WhatsApp
+                        </a>
                         <div class="psi-card-actions">
-                            <a href="${wppUrl}" target="_blank" rel="noopener noreferrer" class="psi-card-btn psi-card-btn-wpp" onclick="event.stopPropagation()">
-                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                                WhatsApp
-                            </a>
                             <a href="${profileUrl}" target="_blank" rel="noopener noreferrer" class="psi-card-btn psi-card-btn-acessivel" onclick="event.stopPropagation()">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
                                 Terapia Acessível
                             </a>
+                            <button class="psi-card-btn psi-card-btn-site" disabled onclick="event.stopPropagation()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                Ver Site (Psicólogo sem site)
+                            </button>
                         </div>
-                        <button class="psi-card-btn psi-card-btn-site" disabled onclick="event.stopPropagation()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                            Ver Site (Psicólogo sem site)
-                        </button>
                     </div>
                 </div>
             `;
