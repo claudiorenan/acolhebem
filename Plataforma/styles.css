@@ -888,6 +888,19 @@ img,svg{display:block}
     width:18px;height:18px;color:var(--ink-20);flex-shrink:0;
 }
 
+/* Topics Section Labels */
+.topics-section-label{
+    display:flex;align-items:center;gap:8px;
+    font-family:var(--f-display);
+    font-size:1.05rem;font-weight:700;
+    padding:12px 4px 8px;margin-top:8px;
+    color:var(--ink-70);
+}
+.topics-section-label:first-child{margin-top:0}
+.topics-section-icon{width:22px;height:22px;flex-shrink:0}
+.topics-section-fem{color:var(--fem)}
+.topics-section-masc{color:var(--masc)}
+
 /* Topic Feed Header */
 .topic-feed-header{
     display:flex;align-items:center;gap:12px;

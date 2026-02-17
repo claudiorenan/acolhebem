@@ -55,6 +55,40 @@ const Feed = {
   },
 
   /**
+   * Auto-create a topic from data.js category (no auth required, uses service-level insert).
+   * Falls back to upsert by slug.
+   */
+  async createTopicAuto(name, emoji, description, slug, color, gender) {
+    const sb = window.supabaseClient;
+
+    // Try to find existing first
+    const { data: existing } = await sb
+      .from('topics')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (existing) return { topic: existing, error: null };
+
+    // Insert new
+    const { data, error } = await sb
+      .from('topics')
+      .insert({
+        name,
+        slug,
+        emoji: emoji || '💬',
+        description: description || null,
+        color: color || '#2f6f64',
+        is_default: true,
+      })
+      .select()
+      .single();
+
+    if (error) return { topic: null, error: error.message };
+    return { topic: data, error: null };
+  },
+
+  /**
    * Load paginated posts with author profile, reaction count, and user reaction.
    * @param {string|null} topicId - filter by topic (null = all posts)
    * @param {number} limit

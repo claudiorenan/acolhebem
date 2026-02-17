@@ -924,39 +924,79 @@ class AcolheBemApp {
         this.currentTopicData = null;
 
         const topicsList = this.$('topicsList');
-        topicsList.innerHTML = '<div style="text-align:center;padding:24px;color:var(--ink-20)">Carregando temas...</div>';
-
-        const topics = await Feed.loadTopics();
         topicsList.innerHTML = '';
 
-        if (topics.length === 0) {
-            topicsList.innerHTML = '<div style="text-align:center;padding:24px;color:var(--ink-40)">Nenhum tema encontrado.</div>';
-            return;
-        }
+        // Load DB topics to map post counts
+        const dbTopics = await Feed.loadTopics();
+        this._dbTopicsMap = {};
+        dbTopics.forEach(t => { this._dbTopicsMap[t.slug] = t; });
 
-        topics.forEach(topic => {
-            topicsList.appendChild(this.buildTopicItem(topic));
+        // Render Feminino section
+        const femLabel = document.createElement('div');
+        femLabel.className = 'topics-section-label topics-section-fem';
+        femLabel.innerHTML = `<svg class="topics-section-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="24" cy="16" r="10"/><line x1="24" y1="26" x2="24" y2="40"/><line x1="18" y1="34" x2="30" y2="34"/></svg> Feminino`;
+        topicsList.appendChild(femLabel);
+
+        TOPICS_DATA.women.categories.forEach(cat => {
+            topicsList.appendChild(this.buildTopicItem(cat, 'women'));
+        });
+
+        // Render Masculino section
+        const mascLabel = document.createElement('div');
+        mascLabel.className = 'topics-section-label topics-section-masc';
+        mascLabel.innerHTML = `<svg class="topics-section-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="19" cy="28" r="10"/><line x1="26" y1="21" x2="38" y2="9"/><polyline points="30,9 38,9 38,17"/></svg> Masculino`;
+        topicsList.appendChild(mascLabel);
+
+        TOPICS_DATA.men.categories.forEach(cat => {
+            topicsList.appendChild(this.buildTopicItem(cat, 'men'));
         });
     }
 
-    buildTopicItem(topic) {
+    _slugify(str) {
+        return str.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+    }
+
+    buildTopicItem(cat, gender) {
+        const slug = this._slugify(cat.title) + '-' + gender;
+        const dbTopic = this._dbTopicsMap[slug];
+        const postCount = dbTopic ? dbTopic.post_count : 0;
+
         const item = document.createElement('div');
         item.className = 'topic-item';
+        item.style.borderLeft = `4px solid ${cat.color}`;
         item.innerHTML = `
-            <span class="topic-item-emoji">${topic.emoji}</span>
+            <span class="topic-item-emoji">${cat.icon}</span>
             <div class="topic-item-info">
-                <div class="topic-item-name">${this.escapeHTML(topic.name)}</div>
-                <div class="topic-item-desc">${topic.description ? this.escapeHTML(topic.description) : ''}</div>
+                <div class="topic-item-name">${this.escapeHTML(cat.title)}</div>
+                <div class="topic-item-desc">${this.escapeHTML(cat.description)}</div>
             </div>
             <div class="topic-item-meta">
-                <span class="topic-item-count">${topic.post_count || 0}</span>
+                <span class="topic-item-count">${postCount}</span>
                 <svg class="topic-item-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
         `;
-        item.addEventListener('click', () => {
-            this.currentTopicId = topic.id;
-            this.currentTopicData = topic;
-            this.showTopicFeed(topic.id, topic);
+        item.addEventListener('click', async () => {
+            // Resolve DB topic — find existing or create
+            let topicData;
+            if (dbTopic) {
+                topicData = dbTopic;
+            } else {
+                // Auto-create the DB topic for this category
+                const { topic, error } = await Feed.createTopicAuto(cat.title, cat.icon, cat.description, slug, cat.color, gender);
+                if (topic) {
+                    topicData = topic;
+                    this._dbTopicsMap[slug] = topic;
+                } else {
+                    // Fallback: use a temp object
+                    topicData = { id: null, name: cat.title, emoji: cat.icon, slug, description: cat.description, color: cat.color, post_count: 0 };
+                }
+            }
+            this.currentTopicId = topicData.id;
+            this.currentTopicData = { ...topicData, emoji: cat.icon, name: cat.title };
+            this.showTopicFeed(topicData.id, { emoji: cat.icon, name: cat.title });
         });
         return item;
     }
