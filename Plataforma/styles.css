@@ -1269,6 +1269,11 @@ img,svg{display:block}
 .feed-post-avatar .avatar-initial{
     font-size:.8rem;font-weight:700;color:var(--emerald);
 }
+.feed-post-topic{
+    font-size:.7rem;font-weight:600;
+    color:var(--emerald);
+    line-height:1.2;margin-bottom:1px;
+}
 .feed-post-name{font-size:.88rem;font-weight:600;color:var(--ink)}
 .feed-post-date{font-size:.72rem;color:var(--ink-20)}
 .feed-post-delete{
@@ -1654,10 +1659,22 @@ img,svg{display:block}
 }
 .psi-cta-link:hover{color:var(--emerald-d)}
 
-/* Psi Filters Bar */
-.psi-filters{
-    display:flex;gap:10px;margin-bottom:16px;
-    flex-wrap:wrap;
+/* Psi Section Title (All Active) */
+.psi-section-title{
+    font-family:var(--f-display);
+    font-size:1.1rem;font-weight:700;
+    color:var(--ink);
+    margin:28px 0 16px;
+    padding-bottom:8px;
+    border-bottom:2px solid var(--ink-10);
+}
+
+/* Active (non-available) status color */
+.psi-card-status-active{
+    color:var(--ink-40);
+}
+.psi-card-status-active .psi-card-status-dot{
+    background:var(--ink-40);
 }
 
 /* Psi Section Footer */

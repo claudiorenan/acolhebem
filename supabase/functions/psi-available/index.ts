@@ -18,6 +18,7 @@ interface Psychologist {
   especialidade: string;
   atendimento: string;
   whatsappUrl: string;
+  available: boolean;
 }
 
 serve(async (req: Request) => {
@@ -68,8 +69,8 @@ serve(async (req: Request) => {
     for (let i = 1; i < cardBlocks.length; i++) {
       const block = cardBlocks[i];
 
-      // Check if this card has a profile link (active psychologist)
-      // Previously filtered by "Disponível hoje" — now we list all active profiles
+      // Check if this card is available today
+      const isAvailable = /Dispon[ií]vel\s+hoje/i.test(block);
 
       // Extract profile URL
       const hrefMatch = block.match(/href="([^"]*\/psicologo\/[^"]*)"/);
@@ -141,7 +142,7 @@ serve(async (req: Request) => {
         ? `https://cademeupsi.com.br/whatsapp/${idMatch[1]}`
         : "";
 
-      psychologists.push({ name, photo, crp, profileUrl, description, abordagem: "", especialidade: "", atendimento: "", whatsappUrl });
+      psychologists.push({ name, photo, crp, profileUrl, description, abordagem: "", especialidade: "", atendimento: "", whatsappUrl, available: isAvailable });
     }
 
     // Fetch individual profiles in parallel to extract abordagem

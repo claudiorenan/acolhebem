@@ -101,7 +101,7 @@ const Feed = {
 
     let query = sb
       .from('posts')
-      .select('*, profiles!posts_user_id_fkey(name, photo_url, gender, birth_year, is_psi)')
+      .select('*, profiles!posts_user_id_fkey(name, photo_url, gender, birth_year, is_psi), topics!posts_topic_id_fkey(name, emoji)')
       .eq('status', 'visible')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
