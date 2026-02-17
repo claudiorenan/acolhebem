@@ -1082,16 +1082,10 @@ class AcolheBemApp {
             }
 
             const wppBtn = this.$('topicSummaryWpp');
-            if (catData.link && catData.link !== '#') {
+            if (this.currentUser && catData.link && catData.link !== '#') {
                 wppBtn.href = catData.link;
                 wppBtn.style.display = '';
-                // Gate WhatsApp link for non-logged users
-                wppBtn.onclick = (e) => {
-                    if (!this.currentUser) {
-                        e.preventDefault();
-                        this.openGate(catData.link);
-                    }
-                };
+                wppBtn.onclick = null;
             } else {
                 wppBtn.style.display = 'none';
             }
