@@ -70,6 +70,20 @@ const Auth = {
   },
 
   /**
+   * Send a password reset email.
+   * @param {string} email
+   * @returns {Promise<{error: string|null}>}
+   */
+  async resetPassword(email) {
+    const sb = window.supabaseClient;
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    if (error) return { error: error.message };
+    return { error: null };
+  },
+
+  /**
    * Listen for auth state changes.
    * @param {function} callback - receives (event, session)
    */

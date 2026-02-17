@@ -253,10 +253,28 @@
                 </div>
                 <div id="loginError" class="auth-error"></div>
                 <button type="submit" class="auth-submit" id="loginSubmitBtn">Entrar</button>
+                <button type="button" class="auth-forgot-btn" id="forgotPasswordBtn">Esqueci minha senha</button>
+            </form>
+
+            <!-- FORGOT PASSWORD FORM -->
+            <form id="forgotForm" class="auth-form" style="display:none">
+                <p class="auth-forgot-desc">Digite seu e-mail e enviaremos um link para redefinir sua senha.</p>
+                <div class="auth-field">
+                    <label for="forgotEmail">E-mail</label>
+                    <input type="email" id="forgotEmail" required placeholder="seu@email.com">
+                </div>
+                <div id="forgotError" class="auth-error"></div>
+                <div id="forgotSuccess" class="auth-success"></div>
+                <button type="submit" class="auth-submit" id="forgotSubmitBtn">Enviar link de recuperacao</button>
+                <button type="button" class="auth-forgot-btn" id="backToLoginBtn">Voltar para login</button>
             </form>
 
             <!-- SIGNUP FORM -->
             <form id="signupForm" class="auth-form" style="display:none">
+                <div class="auth-psi-notice">
+                    <span class="auth-psi-icon">🧑‍⚕️</span>
+                    <span>Psicologo(a)? Cadastre-se em <a href="https://cademeupsi.com.br/psicologos" target="_blank" rel="noopener noreferrer">cademeupsi.com.br/psicologos</a></span>
+                </div>
                 <div class="auth-field">
                     <label for="signupName">Nome completo *</label>
                     <input type="text" id="signupName" required placeholder="Seu nome">

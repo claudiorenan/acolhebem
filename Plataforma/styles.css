@@ -742,6 +742,34 @@ img,svg{display:block}
 }
 .auth-success.visible{display:block}
 
+/* Forgot password link */
+.auth-forgot-btn{
+    background:none;border:none;cursor:pointer;
+    font-size:.82rem;color:var(--emerald);font-weight:500;
+    text-align:center;padding:4px 0;
+    transition:color var(--dur-fast);
+}
+.auth-forgot-btn:hover{color:var(--emerald-d);text-decoration:underline}
+.auth-forgot-desc{
+    font-size:.88rem;color:var(--ink-40);line-height:1.5;
+    margin-bottom:4px;
+}
+
+/* Psychologist notice */
+.auth-psi-notice{
+    display:flex;align-items:center;gap:8px;
+    padding:10px 14px;border-radius:var(--r-sm);
+    background:#e8f5f1;border:1px solid var(--emerald);
+    font-size:.82rem;color:var(--emerald-d);
+    line-height:1.4;
+}
+.auth-psi-notice a{
+    color:var(--emerald);font-weight:600;
+    text-decoration:underline;
+}
+.auth-psi-notice a:hover{color:var(--emerald-d)}
+.auth-psi-icon{font-size:1.2rem;flex-shrink:0}
+
 /* Submit */
 .auth-submit{
     padding:14px;border-radius:var(--r-sm);

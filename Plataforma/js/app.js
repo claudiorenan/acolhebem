@@ -193,6 +193,11 @@ class AcolheBemApp {
         // Login form
         this.$('loginForm').addEventListener('submit', e => this.handleLogin(e));
 
+        // Forgot password
+        this.$('forgotPasswordBtn').addEventListener('click', () => this.showForgotPassword());
+        this.$('backToLoginBtn').addEventListener('click', () => this.showLoginForm());
+        this.$('forgotForm').addEventListener('submit', e => this.handleForgotPassword(e));
+
         // Signup form
         this.$('signupForm').addEventListener('submit', e => this.handleSignup(e));
 
@@ -284,6 +289,49 @@ class AcolheBemApp {
         } else {
             this.closeOverlay('authModal');
             this.$('loginForm').reset();
+        }
+    }
+
+    showForgotPassword() {
+        this.$('loginForm').style.display = 'none';
+        this.$('signupForm').style.display = 'none';
+        this.$('forgotForm').style.display = 'flex';
+        this.$$('.auth-tabs').forEach(el => el.style.display = 'none');
+        this.$('forgotError').classList.remove('visible');
+        this.$('forgotSuccess').classList.remove('visible');
+        this.$('forgotEmail').value = this.$('loginEmail').value || '';
+    }
+
+    showLoginForm() {
+        this.$('forgotForm').style.display = 'none';
+        this.$('loginForm').style.display = 'flex';
+        this.$$('.auth-tabs').forEach(el => el.style.display = '');
+        this.$$('.auth-tab').forEach(t => t.classList.remove('active'));
+        document.querySelector('.auth-tab[data-auth-tab="login"]').classList.add('active');
+    }
+
+    async handleForgotPassword(e) {
+        e.preventDefault();
+        const btn = this.$('forgotSubmitBtn');
+        const errEl = this.$('forgotError');
+        const successEl = this.$('forgotSuccess');
+        errEl.classList.remove('visible');
+        successEl.classList.remove('visible');
+        btn.disabled = true;
+        btn.textContent = 'Enviando...';
+
+        const email = this.$('forgotEmail').value.trim();
+        const { error } = await Auth.resetPassword(email);
+
+        btn.disabled = false;
+        btn.textContent = 'Enviar link de recuperacao';
+
+        if (error) {
+            errEl.textContent = error;
+            errEl.classList.add('visible');
+        } else {
+            successEl.textContent = 'Link enviado! Verifique sua caixa de entrada e spam.';
+            successEl.classList.add('visible');
         }
     }
 
