@@ -1130,21 +1130,23 @@ class AcolheBemApp {
             if (!data.psychologists || data.psychologists.length === 0) {
                 emptyEl.style.display = '';
             } else {
-                const available = data.psychologists.filter(p => p.available);
-                const allActive = data.psychologists.filter(p => !p.available);
+                const available = data.psychologists.filter(p => p.available === true);
+                const allActive = data.psychologists.filter(p => p.available !== true);
 
                 if (available.length > 0) {
                     this.renderPsiCards(available, this.$('psiAvailableGrid'), true);
                     gridEl.style.display = '';
+                } else {
+                    // No available field (cached response) — show all in main grid
+                    if (allActive.length === 0) {
+                        this.renderPsiCards(data.psychologists, this.$('psiAvailableGrid'), true);
+                        gridEl.style.display = '';
+                    }
                 }
 
                 if (allActive.length > 0) {
                     this.renderPsiCards(allActive, this.$('psiAllGrid'), false);
                     this.$('psiAllSection').style.display = '';
-                }
-
-                if (available.length === 0 && allActive.length === 0) {
-                    emptyEl.style.display = '';
                 }
             }
 
