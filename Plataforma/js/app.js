@@ -96,6 +96,9 @@ class AcolheBemApp {
         this.currentTopicId = null;
         this.currentTopicData = null;
         this.communityFilters = { gender: '', ageRange: '' };
+        this._dbTopicsMap = {};
+        this._currentCategoryData = null;
+        this._backToTab = null;
         this.init();
     }
 
@@ -1044,6 +1047,7 @@ class AcolheBemApp {
             }
             this.currentTopicId = topicData.id;
             this.currentTopicData = { ...topicData, emoji: cat.icon, name: cat.title };
+            this._currentCategoryData = cat;
             this.showTopicFeed(topicData.id, { emoji: cat.icon, name: cat.title });
         });
         return item;
@@ -1058,13 +1062,61 @@ class AcolheBemApp {
         this.$('filterGender').value = '';
         this.$('filterAge').value = '';
         this.$('anonCheckbox').checked = false;
+
+        // Populate topic summary if category data is available
+        const summary = this.$('topicSummary');
+        const catData = this._currentCategoryData;
+        if (catData) {
+            summary.style.display = '';
+            this.$('topicSummaryDesc').textContent = catData.description || '';
+
+            const tagsEl = this.$('topicSummaryTags');
+            tagsEl.innerHTML = '';
+            if (catData.subtopics && catData.subtopics.length > 0) {
+                catData.subtopics.forEach(s => {
+                    const tag = document.createElement('span');
+                    tag.className = 'sub-tag';
+                    tag.innerHTML = `<span class="sub-tag-emoji">${s.emoji}</span>${this.escapeHTML(s.name)}`;
+                    tagsEl.appendChild(tag);
+                });
+            }
+
+            const wppBtn = this.$('topicSummaryWpp');
+            if (catData.link && catData.link !== '#') {
+                wppBtn.href = catData.link;
+                wppBtn.style.display = '';
+                // Gate WhatsApp link for non-logged users
+                wppBtn.onclick = (e) => {
+                    if (!this.currentUser) {
+                        e.preventDefault();
+                        this.openGate(catData.link);
+                    }
+                };
+            } else {
+                wppBtn.style.display = 'none';
+            }
+
+            // Apply color accent
+            if (catData.color) {
+                summary.style.borderLeftColor = catData.color;
+            }
+        } else {
+            summary.style.display = 'none';
+        }
+
         await this.loadFeed();
     }
 
     handleBackToTopics() {
         this.currentTopicId = null;
         this.currentTopicData = null;
-        this.showTopicsListing();
+        this._currentCategoryData = null;
+        if (this._backToTab) {
+            this.switchTab(this._backToTab);
+            this._backToTab = null;
+        } else {
+            this.showTopicsListing();
+        }
     }
 
     handleFilterChange() {
@@ -1281,19 +1333,8 @@ class AcolheBemApp {
             card.className = 'topic-card';
             card.id = 'topic-' + c.id;
 
-            const tags = c.subtopics.map(s =>
-                `<span class="sub-tag"><span class="sub-tag-emoji">${s.emoji}</span>${s.name}</span>`
-            ).join('');
-
-            // Build WhatsApp button: gated or direct
-            const wppBtnHTML = `
-                <button class="wpp-btn-big wpp-gate-btn" style="--btn-color:${c.color}" data-link="${c.link}">
-                    ${wppIcon}
-                    <span>Entrar no grupo</span>
-                </button>`;
-
             card.innerHTML = `
-                <div class="tc-header" role="button" tabindex="0" aria-expanded="false">
+                <div class="tc-header" role="button" tabindex="0">
                     <div class="tc-num" style="background:${c.color}">${c.id}</div>
                     <span class="tc-emoji">${c.icon}</span>
                     <div class="tc-info">
@@ -1301,49 +1342,50 @@ class AcolheBemApp {
                         <div class="tc-desc">${c.description}</div>
                     </div>
                     <div class="tc-chevron">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-                    </div>
-                </div>
-                <div class="tc-body">
-                    <div class="tc-body-inner">
-                        <p class="tc-themes-label">Temas abordados neste grupo:</p>
-                        <div class="sub-tags">${tags}</div>
-                        ${wppBtnHTML}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
                     </div>
                 </div>`;
 
             const hdr = card.querySelector('.tc-header');
-            hdr.addEventListener('click', () => {
-                const wasOpen = card.classList.contains('open');
-                // close all others
-                area.querySelectorAll('.topic-card.open').forEach(other => {
-                    other.classList.remove('open');
-                    other.querySelector('.tc-header').setAttribute('aria-expanded', false);
-                });
-                // toggle this one
-                if (!wasOpen) {
-                    card.classList.add('open');
-                    hdr.setAttribute('aria-expanded', true);
+            hdr.addEventListener('click', async () => {
+                // Navigate to community tab showing this topic's feed + summary
+                const gender = this.gender; // 'women' or 'men'
+                const slug = this._slugify(c.title) + '-' + gender;
+
+                // Ensure DB topics map is loaded
+                if (!this._dbTopicsMap || Object.keys(this._dbTopicsMap).length === 0) {
+                    const dbTopics = await Feed.loadTopics();
+                    this._dbTopicsMap = {};
+                    dbTopics.forEach(t => { this._dbTopicsMap[t.slug] = t; });
                 }
+
+                // Resolve or auto-create DB topic
+                let topicData;
+                const dbTopic = this._dbTopicsMap[slug];
+                if (dbTopic) {
+                    topicData = dbTopic;
+                } else {
+                    const { topic } = await Feed.createTopicAuto(c.title, c.icon, c.description, slug, c.color, gender);
+                    if (topic) {
+                        topicData = topic;
+                        this._dbTopicsMap[slug] = topic;
+                    } else {
+                        topicData = { id: null, name: c.title, emoji: c.icon, slug, description: c.description, color: c.color, post_count: 0 };
+                    }
+                }
+
+                this.currentTopicId = topicData.id;
+                this.currentTopicData = { ...topicData, emoji: c.icon, name: c.title };
+                this._currentCategoryData = c;
+                this._backToTab = this.currentTab;
+
+                // Switch to community tab and show the topic feed
+                this.currentTab = 'community';
+                this.$$('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === 'community'));
+                this.showCommunity();
             });
             hdr.addEventListener('keydown', e => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); hdr.click(); }
-            });
-
-            // Gate button handler
-            const gateBtn = card.querySelector('.wpp-gate-btn');
-            gateBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const link = gateBtn.dataset.link;
-                if (link === '#') {
-                    alert('Este grupo ainda não está disponível.');
-                    return;
-                }
-                if (this.currentUser) {
-                    window.open(link, '_blank');
-                } else {
-                    this.openGate(link);
-                }
             });
 
             area.appendChild(card);
