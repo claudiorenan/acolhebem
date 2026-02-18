@@ -44,71 +44,51 @@ ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversation_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
--- 4. RLS Policies
+-- 4. Helper function for RLS (SECURITY DEFINER avoids infinite recursion)
 -- ------------------------------------------------------------
 
--- conversations: SELECT where user is a participant
+CREATE OR REPLACE FUNCTION is_conversation_member(p_conversation_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM conversation_participants
+    WHERE conversation_id = p_conversation_id
+      AND user_id = auth.uid()
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION is_conversation_member(UUID) TO authenticated;
+
+-- 5. RLS Policies
+-- ------------------------------------------------------------
+
 CREATE POLICY "Users can view their conversations"
     ON conversations FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM conversation_participants
-            WHERE conversation_participants.conversation_id = conversations.id
-              AND conversation_participants.user_id = auth.uid()
-        )
-    );
+    USING (is_conversation_member(id));
 
--- conversation_participants: SELECT where user is participant of the same conversation
 CREATE POLICY "Users can view participants of their conversations"
     ON conversation_participants FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM conversation_participants AS cp
-            WHERE cp.conversation_id = conversation_participants.conversation_id
-              AND cp.user_id = auth.uid()
-        )
-    );
+    USING (is_conversation_member(conversation_id));
 
--- messages: SELECT where user is participant of the conversation
 CREATE POLICY "Users can view messages in their conversations"
     ON messages FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM conversation_participants
-            WHERE conversation_participants.conversation_id = messages.conversation_id
-              AND conversation_participants.user_id = auth.uid()
-        )
-    );
+    USING (is_conversation_member(conversation_id));
 
--- messages: INSERT where user is participant AND sender_id = auth.uid()
 CREATE POLICY "Users can send messages in their conversations"
     ON messages FOR INSERT
     WITH CHECK (
         sender_id = auth.uid()
-        AND EXISTS (
-            SELECT 1 FROM conversation_participants
-            WHERE conversation_participants.conversation_id = messages.conversation_id
-              AND conversation_participants.user_id = auth.uid()
-        )
+        AND is_conversation_member(conversation_id)
     );
 
--- messages: UPDATE (only read_at, for marking as read)
 CREATE POLICY "Users can mark messages as read"
     ON messages FOR UPDATE
-    USING (
-        EXISTS (
-            SELECT 1 FROM conversation_participants
-            WHERE conversation_participants.conversation_id = messages.conversation_id
-              AND conversation_participants.user_id = auth.uid()
-        )
-    )
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM conversation_participants
-            WHERE conversation_participants.conversation_id = messages.conversation_id
-              AND conversation_participants.user_id = auth.uid()
-        )
-    );
+    USING (is_conversation_member(conversation_id))
+    WITH CHECK (is_conversation_member(conversation_id));
 
 -- 5. RPC Functions
 -- ------------------------------------------------------------
