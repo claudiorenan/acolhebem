@@ -1457,7 +1457,14 @@ class AcolheBemApp {
             <div class="tp-cta">${ctaText}</div>
         `;
 
-        page.addEventListener('click', async () => {
+        // Add subscribe bell on the topic card (only for logged-in users)
+        if (this.currentUser) {
+            this._addTopicCardBell(page, slug, cat, gender);
+        }
+
+        page.addEventListener('click', async (e) => {
+            // Don't navigate if clicking the bell
+            if (e.target.closest('.tp-bell')) return;
             if (!this.currentUser) {
                 this.openOverlay('authModal');
                 return;
@@ -1481,6 +1488,72 @@ class AcolheBemApp {
         });
 
         return page;
+    }
+
+    async _addTopicCardBell(page, slug, cat, gender) {
+        const bell = document.createElement('button');
+        bell.className = 'tp-bell';
+        bell.setAttribute('aria-label', 'Ativar notificacoes');
+        bell.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+        `;
+        page.style.position = 'relative';
+        page.appendChild(bell);
+
+        // Resolve topic ID (may need to wait for DB topics to load)
+        const resolveTopicId = async () => {
+            let dbTopic = this._dbTopicsMap[slug];
+            if (dbTopic) return dbTopic.id;
+            // If not loaded yet, create/find it
+            const { topic } = await Feed.createTopicAuto(cat.title, cat.icon, cat.description, slug, cat.color, gender);
+            if (topic) {
+                this._dbTopicsMap[slug] = topic;
+                return topic.id;
+            }
+            return null;
+        };
+
+        // Check subscription state once DB topics are loaded
+        const checkState = async () => {
+            const topicId = this._dbTopicsMap[slug]?.id;
+            if (!topicId) return;
+            const subscribed = await Feed.isSubscribed(topicId);
+            if (subscribed) {
+                bell.classList.add('active');
+                bell.querySelector('svg').setAttribute('fill', 'currentColor');
+            }
+        };
+        // Delay check slightly to let DB topics load
+        setTimeout(() => checkState(), 800);
+
+        bell.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            bell.disabled = true;
+
+            const topicId = await resolveTopicId();
+            if (!topicId) { bell.disabled = false; return; }
+
+            const isActive = bell.classList.contains('active');
+
+            if (isActive) {
+                const { error } = await Feed.unsubscribeTopic(topicId);
+                if (!error) {
+                    bell.classList.remove('active');
+                    bell.querySelector('svg').setAttribute('fill', 'none');
+                }
+            } else {
+                await Notifications.requestBrowserPermission();
+                const { error } = await Feed.subscribeTopic(topicId);
+                if (!error) {
+                    bell.classList.add('active');
+                    bell.querySelector('svg').setAttribute('fill', 'currentColor');
+                }
+            }
+            bell.disabled = false;
+        });
     }
 
     async showTopicFeed(topicId, topicData) {

@@ -2211,6 +2211,32 @@ img,svg{display:block}
     font-size:.85rem;color:var(--ink-40);
 }
 
+/* Bell icon on topic cards (community listing) */
+.tp-bell{
+    position:absolute;top:8px;right:8px;
+    width:30px;height:30px;border-radius:var(--r-full);
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,.85);
+    border:1.5px solid var(--ink-10);
+    color:var(--ink-40);
+    cursor:pointer;z-index:2;
+    transition:all var(--dur-fast);
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+.tp-bell svg{width:15px;height:15px}
+.tp-bell:hover{
+    border-color:var(--emerald);color:var(--emerald);
+    background:var(--white);
+}
+.tp-bell.active{
+    background:var(--emerald);color:var(--white);
+    border-color:var(--emerald);
+}
+.tp-bell.active:hover{
+    background:var(--emerald-d);border-color:var(--emerald-d);
+}
+.tp-bell:disabled{opacity:.5;cursor:default}
+
 /* Subscribe toggle button in topic feed */
 .topic-subscribe-btn{
     display:inline-flex;align-items:center;gap:6px;
