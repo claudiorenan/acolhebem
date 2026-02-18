@@ -1117,6 +1117,9 @@ class AcolheBemApp {
         if (this.currentTab === tab) return;
         this.currentTab = tab;
 
+        // hide admin panel if open
+        this.$('adminSection').style.display = 'none';
+
         // update tab buttons
         this.$$('.tab-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tab);
