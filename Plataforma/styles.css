@@ -1021,6 +1021,19 @@ img,svg{display:block}
     font-family:var(--f-display);
     font-size:1.4rem;font-weight:700;color:var(--ink);
 }
+.ugc-btn{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:7px 14px;border-radius:100px;
+    background:var(--emerald);color:var(--white);
+    font-size:.78rem;font-weight:600;font-family:var(--f-body);
+    text-decoration:none;white-space:nowrap;
+    transition:all var(--dur-fast);
+}
+.ugc-btn:hover{
+    background:var(--emerald-d);transform:translateY(-1px);
+    box-shadow:0 2px 8px rgba(47,111,100,.2);
+}
+.ugc-btn svg{width:16px;height:16px;flex-shrink:0}
 .create-topic-btn{
     padding:8px 18px;border-radius:100px;
     background:var(--emerald);color:var(--white);
@@ -1590,6 +1603,7 @@ img,svg{display:block}
     .topbar-login-btn{padding:8px}
     .community-header{flex-wrap:wrap;gap:10px}
     .community-title{font-size:1.2rem}
+    .ugc-btn{font-size:.72rem;padding:6px 10px}
     .topics-list{grid-template-columns:repeat(auto-fill, minmax(100px, 1fr));gap:8px}
     .tp-header{padding:12px 8px 8px}
     .tp-emoji{font-size:1.5rem}
