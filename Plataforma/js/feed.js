@@ -377,5 +377,92 @@ const Feed = {
       .order('created_at', { ascending: false });
     if (error) { console.error('loadPsychologists error:', error); return []; }
     return data || [];
+  },
+
+  // ========================================
+  //  TOPIC SUBSCRIPTIONS
+  // ========================================
+
+  /**
+   * Subscribe current user to a topic.
+   * @param {string} topicId
+   * @returns {Promise<{error: string|null}>}
+   */
+  async subscribeTopic(topicId) {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return { error: 'Faca login para ativar notificacoes.' };
+
+    const { error } = await sb
+      .from('topic_subscriptions')
+      .insert({ user_id: user.id, topic_id: topicId });
+
+    if (error) {
+      if (error.code === '23505') return { error: null }; // already subscribed
+      return { error: error.message };
+    }
+    return { error: null };
+  },
+
+  /**
+   * Unsubscribe current user from a topic.
+   * @param {string} topicId
+   * @returns {Promise<{error: string|null}>}
+   */
+  async unsubscribeTopic(topicId) {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return { error: 'Faca login.' };
+
+    const { error } = await sb
+      .from('topic_subscriptions')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('topic_id', topicId);
+
+    if (error) return { error: error.message };
+    return { error: null };
+  },
+
+  /**
+   * Check if current user is subscribed to a topic.
+   * @param {string} topicId
+   * @returns {Promise<boolean>}
+   */
+  async isSubscribed(topicId) {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return false;
+
+    const { data } = await sb
+      .from('topic_subscriptions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('topic_id', topicId)
+      .maybeSingle();
+
+    return !!data;
+  },
+
+  /**
+   * Get all subscribers of a topic, optionally excluding a user.
+   * @param {string} topicId
+   * @param {string|null} excludeUserId
+   * @returns {Promise<object[]>}
+   */
+  async getTopicSubscribers(topicId, excludeUserId = null) {
+    const sb = window.supabaseClient;
+    let query = sb
+      .from('topic_subscriptions')
+      .select('user_id')
+      .eq('topic_id', topicId);
+
+    if (excludeUserId) {
+      query = query.neq('user_id', excludeUserId);
+    }
+
+    const { data, error } = await query;
+    if (error) { console.error('getTopicSubscribers error:', error); return []; }
+    return data || [];
   }
 };

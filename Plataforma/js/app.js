@@ -297,10 +297,16 @@ class AcolheBemApp {
                 const profile = await Profile.getProfile(session.user.id);
                 this.currentProfile = profile;
                 this.updateTopbarUser();
+                // Init notifications
+                Notifications.init(session.user.id);
+                this.$('notifBtn').style.display = '';
             } else {
                 this.currentUser = null;
                 this.currentProfile = null;
                 this.updateTopbarUser();
+                // Destroy notifications
+                Notifications.destroy();
+                this.$('notifBtn').style.display = 'none';
             }
         });
 
@@ -312,6 +318,8 @@ class AcolheBemApp {
                     this.currentUser = user;
                     this.currentProfile = await Profile.getProfile(user.id);
                     this.updateTopbarUser();
+                    Notifications.init(user.id);
+                    this.$('notifBtn').style.display = '';
                 }
             }
         }, 2000);
@@ -671,6 +679,15 @@ class AcolheBemApp {
 
         loadMoreBtn.addEventListener('click', () => this.loadMorePosts());
 
+        // Notification bell
+        this.$('notifBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            Notifications.toggleDropdown();
+        });
+        this.$('notifMarkAllRead').addEventListener('click', () => {
+            Notifications.markAllRead();
+        });
+
         // Feed login button
         this.$('feedLoginBtn').addEventListener('click', () => {
             this.openOverlay('authModal');
@@ -801,6 +818,12 @@ class AcolheBemApp {
 
         const feedList = this.$('feedList');
         feedList.prepend(this.buildPostCard(post));
+
+        // Notify topic subscribers
+        if (this.currentTopicId && post) {
+            const actorName = isAnonymous ? 'Alguem' : (this.currentProfile?.name?.split(' ')[0] || 'Alguem');
+            Notifications.notifySubscribers(this.currentTopicId, post.id, actorName, 'new_post');
+        }
     }
 
     buildPostCard(post) {
@@ -955,6 +978,12 @@ class AcolheBemApp {
                 // Update reply count
                 const countEl = replyToggleBtn.querySelector('.reply-count');
                 countEl.textContent = parseInt(countEl.textContent || '0') + 1;
+
+                // Notify topic subscribers about the reply
+                if (this.currentTopicId && reply) {
+                    const actorName = this.currentProfile?.name?.split(' ')[0] || 'Alguem';
+                    Notifications.notifySubscribers(this.currentTopicId, post.id, actorName, 'new_reply');
+                }
             });
         }
 
@@ -1458,6 +1487,7 @@ class AcolheBemApp {
         this.$('topicsView').style.display = 'none';
         this.$('topicFeedView').style.display = '';
         this.$('topicFeedTitle').innerHTML = `<span>${topicData.emoji}</span> ${this.escapeHTML(topicData.name)}`;
+        this._renderSubscribeBtn(topicId);
         this.updateFeedComposerVisibility();
         this.communityFilters = { gender: '', ageRange: '' };
         this.$('filterGender').value = '';
@@ -1500,6 +1530,63 @@ class AcolheBemApp {
         }
 
         await this.loadFeed();
+    }
+
+    async _renderSubscribeBtn(topicId) {
+        // Remove existing subscribe button if any
+        const existing = document.querySelector('.topic-subscribe-btn');
+        if (existing) existing.remove();
+
+        if (!this.currentUser || !topicId) return;
+
+        const header = this.$('topicFeedTitle');
+        if (!header) return;
+
+        const btn = document.createElement('button');
+        btn.className = 'topic-subscribe-btn';
+        btn.disabled = true;
+        btn.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span>Notificar</span>
+        `;
+
+        header.parentElement.appendChild(btn);
+
+        // Check current subscription state
+        const subscribed = await Feed.isSubscribed(topicId);
+        btn.disabled = false;
+        this._updateSubscribeBtn(btn, subscribed);
+
+        btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            const isCurrentlySubscribed = btn.classList.contains('subscribed');
+
+            if (isCurrentlySubscribed) {
+                const { error } = await Feed.unsubscribeTopic(topicId);
+                if (!error) this._updateSubscribeBtn(btn, false);
+            } else {
+                // Request browser notification permission on first subscribe
+                await Notifications.requestBrowserPermission();
+                const { error } = await Feed.subscribeTopic(topicId);
+                if (!error) this._updateSubscribeBtn(btn, true);
+            }
+            btn.disabled = false;
+        });
+    }
+
+    _updateSubscribeBtn(btn, subscribed) {
+        if (subscribed) {
+            btn.classList.add('subscribed');
+            btn.querySelector('span').textContent = 'Notificando';
+            btn.querySelector('svg').setAttribute('fill', 'currentColor');
+        } else {
+            btn.classList.remove('subscribed');
+            btn.querySelector('span').textContent = 'Notificar';
+            btn.querySelector('svg').setAttribute('fill', 'none');
+        }
     }
 
     handleBackToTopics() {
@@ -2360,4 +2447,5 @@ class AcolheBemApp {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new AcolheBemApp();
+    window.acolheBemApp = window.app;
 });
