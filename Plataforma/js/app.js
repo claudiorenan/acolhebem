@@ -114,6 +114,26 @@ const ContentFilter = {
         { regex: /(?:whatsapp|wpp|zap|zapzap|instagram|insta|tiktok|telegram)\s*[:.]?\s*\d[\d\s.\-]{6,}/gi, type: 'contato de rede social' },
     ],
 
+    _disabledTypes: new Set(),
+
+    /**
+     * Load filter enabled/disabled state from Supabase.
+     */
+    async loadFromDB() {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb) return;
+            const { data, error } = await sb.from('content_filters').select('id, filter_type, enabled');
+            if (error || !data) return;
+            this._disabledTypes.clear();
+            for (const row of data) {
+                if (!row.enabled) this._disabledTypes.add(row.filter_type);
+            }
+        } catch (e) {
+            console.error('ContentFilter.loadFromDB:', e);
+        }
+    },
+
     /**
      * Check if content contains blocked patterns.
      * @param {string} content
@@ -121,6 +141,7 @@ const ContentFilter = {
      */
     check(content) {
         for (const p of this.patterns) {
+            if (this._disabledTypes.has(p.type)) continue;
             p.regex.lastIndex = 0;
             if (p.regex.test(content)) {
                 return { blocked: true, type: p.type };
@@ -2281,10 +2302,12 @@ class AcolheBemApp {
                 this.$('adminMembersPanel').style.display = tab === 'members' ? '' : 'none';
                 this.$('adminTopicsPanel').style.display = tab === 'topics' ? '' : 'none';
                 this.$('adminPsiPanel').style.display = tab === 'psi' ? '' : 'none';
+                this.$('adminFiltersPanel').style.display = tab === 'filters' ? '' : 'none';
 
                 if (tab === 'members') this.loadAdminMembers();
                 if (tab === 'topics') this.loadAdminTopics();
                 if (tab === 'psi') this.loadAdminPsi();
+                if (tab === 'filters') this.loadAdminFilters();
             });
         });
 
@@ -2512,13 +2535,77 @@ class AcolheBemApp {
         });
     }
 
+    async loadAdminFilters() {
+        const list = this.$('adminFiltersList');
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando...</div>';
+
+        try {
+            const sb = window.supabaseClient;
+            const { data, error } = await sb.from('content_filters').select('*').order('id');
+            if (error) throw error;
+
+            list.innerHTML = '';
+            (data || []).forEach(f => {
+                const item = document.createElement('div');
+                item.className = 'admin-filter-item';
+                item.id = `adminFilter_${f.id}`;
+                item.innerHTML = `
+                    <div class="admin-filter-info">
+                        <span class="admin-filter-label">${this.escapeHTML(f.label)}</span>
+                        <span class="admin-filter-type">${this.escapeHTML(f.filter_type)}</span>
+                    </div>
+                    <label class="admin-filter-toggle">
+                        <input type="checkbox" ${f.enabled ? 'checked' : ''} onchange="app.toggleAdminFilter('${f.id}', this.checked)">
+                        <span class="admin-filter-track"><span class="admin-filter-thumb"></span></span>
+                        <span class="admin-filter-status">${f.enabled ? 'Ativo' : 'Inativo'}</span>
+                    </label>
+                `;
+                list.appendChild(item);
+            });
+        } catch (e) {
+            console.error('loadAdminFilters:', e);
+            list.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar filtros.</div>';
+        }
+    }
+
+    async toggleAdminFilter(filterId, enabled) {
+        const item = this.$(`adminFilter_${filterId}`);
+        const statusEl = item?.querySelector('.admin-filter-status');
+        const checkbox = item?.querySelector('input[type="checkbox"]');
+
+        try {
+            const sb = window.supabaseClient;
+            const { error } = await sb.from('content_filters').update({ enabled, updated_at: new Date().toISOString() }).eq('id', filterId);
+            if (error) throw error;
+
+            if (statusEl) statusEl.textContent = enabled ? 'Ativo' : 'Inativo';
+
+            // Update ContentFilter in real time
+            const { data } = await sb.from('content_filters').select('id, filter_type, enabled').eq('id', filterId).single();
+            if (data) {
+                if (data.enabled) {
+                    ContentFilter._disabledTypes.delete(data.filter_type);
+                } else {
+                    ContentFilter._disabledTypes.add(data.filter_type);
+                }
+            }
+        } catch (e) {
+            console.error('toggleAdminFilter:', e);
+            // Revert checkbox on error
+            if (checkbox) checkbox.checked = !enabled;
+            if (statusEl) statusEl.textContent = !enabled ? 'Ativo' : 'Inativo';
+            alert('Erro ao atualizar filtro. Tente novamente.');
+        }
+    }
+
     sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 }
 
 // ============================================================
 //  BOOT
 // ============================================================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await ContentFilter.loadFromDB();
     window.app = new AcolheBemApp();
     window.acolheBemApp = window.app;
 });

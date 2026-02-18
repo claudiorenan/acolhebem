@@ -2273,6 +2273,61 @@ img,svg{display:block}
     }
 }
 
+/* ==========================================================
+   ADMIN FILTERS
+   ========================================================== */
+.admin-filters-desc{
+    font-size:.85rem;color:var(--ink-40);margin-bottom:16px;line-height:1.5;
+}
+.admin-filters-list{
+    display:flex;flex-direction:column;gap:8px;
+}
+.admin-filter-item{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--white);border-radius:var(--r-sm);
+    padding:14px 16px;border:1px solid var(--ink-10);
+    transition:border-color var(--dur-fast);
+}
+.admin-filter-item:has(input:checked){
+    border-color:var(--emerald);
+}
+.admin-filter-info{
+    display:flex;flex-direction:column;gap:2px;
+}
+.admin-filter-label{
+    font-size:.9rem;font-weight:600;color:var(--ink);
+}
+.admin-filter-type{
+    font-size:.75rem;color:var(--ink-40);
+}
+.admin-filter-toggle{
+    display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;
+}
+.admin-filter-toggle input{display:none}
+.admin-filter-track{
+    position:relative;width:40px;height:22px;
+    background:#ccc;border-radius:11px;flex-shrink:0;
+    transition:background var(--dur-fast);
+}
+.admin-filter-toggle:has(input:checked) .admin-filter-track{
+    background:var(--emerald);
+}
+.admin-filter-thumb{
+    position:absolute;top:2px;left:2px;
+    width:18px;height:18px;border-radius:50%;
+    background:white;box-shadow:0 1px 3px rgba(0,0,0,.2);
+    transition:transform var(--dur-fast);
+}
+.admin-filter-toggle:has(input:checked) .admin-filter-thumb{
+    transform:translateX(18px);
+}
+.admin-filter-status{
+    font-size:.78rem;font-weight:600;color:var(--ink-40);min-width:42px;
+}
+.admin-filter-toggle:has(input:checked) .admin-filter-status{
+    color:var(--emerald-d);
+}
+
 /* === SAFE AREA (iPhone notch/home bar) === */
 @supports(padding: env(safe-area-inset-bottom)){
     .topbar{padding-top:env(safe-area-inset-top)}
