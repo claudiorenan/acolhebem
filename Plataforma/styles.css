@@ -18,6 +18,7 @@
 
     --ink:        #1a1a2e;
     --ink-70:     #3d3d56;
+    --ink-60:     #5c5c78;
     --ink-40:     #8888a0;
     --ink-20:     #c5c5d3;
     --ink-10:     #e8e8f0;
@@ -41,6 +42,7 @@
     --r-full: 50%;
 
     --f-display: 'Playfair Display', Georgia, serif;
+    --ff-heading:'Playfair Display', Georgia, serif;
     --f-body:    'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 
     --ease-out:  cubic-bezier(.23,1,.32,1);

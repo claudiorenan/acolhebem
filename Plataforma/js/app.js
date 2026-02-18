@@ -39,7 +39,8 @@ class ParticleSystem {
             }
         });
 
-        this.spawn(60);
+        const isMobile = window.innerWidth < 768;
+        this.spawn(isMobile ? 25 : 60);
         this.loop();
     }
     resize() {
@@ -521,7 +522,7 @@ class AcolheBemApp {
 
             // Show success message on login form
             const loginErr = this.$('loginError');
-            loginErr.innerHTML = 'Conta criada! Enviamos um e-mail de confirmação para <strong>' + signupEmail + '</strong>. Verifique sua caixa de entrada e spam antes de fazer login.';
+            loginErr.innerHTML = 'Conta criada! Enviamos um e-mail de confirmação para <strong>' + this.escapeHTML(signupEmail) + '</strong>. Verifique sua caixa de entrada e spam antes de fazer login.';
             loginErr.style.color = '#2f6f64';
             loginErr.classList.add('visible');
         }
