@@ -1399,6 +1399,7 @@ class AcolheBemApp {
             this.buildContent();
             this.renderHeroViz();
             this.revealCards();
+            this._loadMonthlyPostCounts();
         }
     }
 
@@ -1692,6 +1693,7 @@ class AcolheBemApp {
         Feed.loadTopics().then(dbTopics => {
             this._dbTopicsMap = {};
             dbTopics.forEach(t => { this._dbTopicsMap[t.slug] = t; });
+            this._loadMonthlyPostCounts();
         });
 
         // Render Feminino section
@@ -1720,6 +1722,45 @@ class AcolheBemApp {
             .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-|-$/g, '');
+    }
+
+    async _loadMonthlyPostCounts() {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb || !this._dbTopicsMap || Object.keys(this._dbTopicsMap).length === 0) return;
+
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+            const { data, error } = await sb
+                .from('posts')
+                .select('topic_id')
+                .eq('status', 'visible')
+                .gte('created_at', startOfMonth);
+
+            if (error || !data) return;
+
+            const countsByTopicId = {};
+            data.forEach(p => {
+                if (p.topic_id) countsByTopicId[p.topic_id] = (countsByTopicId[p.topic_id] || 0) + 1;
+            });
+
+            const cats = this.data.categories;
+            const gender = this.gender;
+            cats.forEach(c => {
+                const slug = this._slugify(c.title) + '-' + gender;
+                const dbTopic = this._dbTopicsMap[slug];
+                const count = dbTopic ? (countsByTopicId[dbTopic.id] || 0) : 0;
+
+                const fiEl = document.getElementById('fi-count-' + c.id);
+                if (fiEl) fiEl.textContent = count + ' posts no mês';
+
+                const heroEl = document.getElementById('hero-count-' + c.id);
+                if (heroEl) heroEl.textContent = count + ' posts no mês';
+            });
+        } catch (err) {
+            console.warn('_loadMonthlyPostCounts error:', err);
+        }
     }
 
     buildTopicPage(cat, gender) {
@@ -2320,7 +2361,7 @@ class AcolheBemApp {
                 <span class="fi-num" style="background:${c.color}">${c.id}</span>
                 <div class="fi-label">
                     <div class="fi-title">${c.icon} ${c.title}</div>
-                    <div class="fi-count">${c.subtopics.length} subtemas</div>
+                    <div class="fi-count" id="fi-count-${c.id}">-- posts no mês</div>
                 </div>`;
             li.onclick = () => {
                 this.toggleIndex(false);
@@ -2787,10 +2828,11 @@ class AcolheBemApp {
                 .attr('font-size', lblSz).attr('font-weight', 600).attr('fill', '#333')
                 .attr('font-family','DM Sans, sans-serif').text(lbl);
 
-            g.append('text').attr('y', subY).attr('text-anchor','middle')
+            g.append('text').attr('id', 'hero-count-' + n.c.id)
+                .attr('y', subY).attr('text-anchor','middle')
                 .attr('font-size', subSz).attr('fill','#888')
                 .attr('font-family','DM Sans, sans-serif')
-                .text(n.c.subtopics.length + ' subtemas');
+                .text('-- posts no mês');
 
             g.transition().duration(700).delay(500 + i * 120)
                 .ease(d3.easeBackOut.overshoot(1.2))
