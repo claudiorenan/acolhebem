@@ -131,7 +131,7 @@ const ContentFilter = {
                 if (!row.enabled) this._disabledTypes.add(row.filter_type);
             }
         } catch (e) {
-            console.error('ContentFilter.loadFromDB:', e);
+            ErrorHandler.handle('ContentFilter.loadFromDB', e, { silent: true });
         }
     },
 
@@ -183,12 +183,20 @@ class AcolheBemApp {
         this.psiAvailableFetched = false;
         this._followingSet = new Set();
         this._followingData = [];
+        this._feedSource = 'all'; // 'all' or 'following'
+        this._searchActiveTab = 'posts';
+        this._searchCache = { posts: [], profiles: [], topics: [] };
+        this._dmConversationId = null;
+        this._dmOtherUser = null;
         this.init();
     }
 
     init() {
         this.$  = id => document.getElementById(id);
         this.$$ = sel => document.querySelectorAll(sel);
+
+        // Initialize global error handler
+        ErrorHandler.init();
 
         // particles
         this.particles = new ParticleSystem(this.$('particleCanvas'));
@@ -251,6 +259,9 @@ class AcolheBemApp {
 
         // ---- PSICOLOGOS UI ----
         this.initPsicologos();
+
+        // ---- DM UI ----
+        this.initDM();
 
         // load default tab (women)
         this.applyTheme();
@@ -324,9 +335,14 @@ class AcolheBemApp {
                 // Init notifications
                 Notifications.init(session.user.id);
                 this.$('notifBtn').style.display = '';
+                // Init DM
+                Messages.init(session.user.id);
+                this.$('dmBtn').style.display = '';
                 // Load following cache
                 this._loadFollowingCache();
                 this.$('followingBtn').style.display = '';
+                // Set Sentry user context
+                ErrorHandler.setSentryUser(session.user.id, session.user.email);
             } else {
                 this.currentUser = null;
                 this.currentProfile = null;
@@ -334,9 +350,14 @@ class AcolheBemApp {
                 // Destroy notifications
                 Notifications.destroy();
                 this.$('notifBtn').style.display = 'none';
+                // Destroy DM
+                Messages.destroy();
+                this.$('dmBtn').style.display = 'none';
                 this._followingSet = new Set();
                 this._followingData = [];
                 this.$('followingBtn').style.display = 'none';
+                // Clear Sentry user context
+                ErrorHandler.clearSentryUser();
             }
         });
 
@@ -350,6 +371,8 @@ class AcolheBemApp {
                     this.updateTopbarUser();
                     Notifications.init(user.id);
                     this.$('notifBtn').style.display = '';
+                    Messages.init(user.id);
+                    this.$('dmBtn').style.display = '';
                     this._loadFollowingCache();
                     this.$('followingBtn').style.display = '';
                 }
@@ -405,10 +428,32 @@ class AcolheBemApp {
         const errEl = this.$('loginError');
         errEl.classList.remove('visible');
         errEl.style.color = '';
+
+        // Client-side validation
+        const form = this.$('loginForm');
+        Validation.clearAll(form);
+
+        const emailField = this.$('loginEmail');
+        const passField = this.$('loginPassword');
+
+        const emailResult = Validation.email(emailField.value);
+        if (!emailResult.valid) {
+            Validation.showFieldError(emailField, emailResult.error);
+            errEl.textContent = emailResult.error;
+            errEl.classList.add('visible');
+            return;
+        }
+        if (!passField.value) {
+            Validation.showFieldError(passField, 'Senha e obrigatoria.');
+            errEl.textContent = 'Senha e obrigatoria.';
+            errEl.classList.add('visible');
+            return;
+        }
+
         btn.disabled = true;
 
-        const email = this.$('loginEmail').value;
-        const password = this.$('loginPassword').value;
+        const email = emailField.value;
+        const password = passField.value;
         const isPsi = this.$('loginPsiToggle').checked;
 
         if (isPsi) {
@@ -494,20 +539,52 @@ class AcolheBemApp {
         const successEl = this.$('signupSuccess');
         errEl.classList.remove('visible');
         if (successEl) successEl.classList.remove('visible');
+
+        // Client-side validation
+        const form = this.$('signupForm');
+        Validation.clearAll(form);
+
+        const fieldMap = {
+            name: this.$('signupName'),
+            email: this.$('signupEmail'),
+            password: this.$('signupPassword'),
+            whatsapp: this.$('signupWhatsapp'),
+            bio: this.$('signupBio'),
+            birthYear: this.$('signupBirthYear'),
+            city: this.$('signupCity'),
+        };
+
+        const result = Validation.signup({
+            name: fieldMap.name.value,
+            email: fieldMap.email.value,
+            password: fieldMap.password.value,
+            whatsapp: fieldMap.whatsapp.value,
+            bio: fieldMap.bio.value,
+            birthYear: fieldMap.birthYear.value,
+            city: fieldMap.city.value,
+        });
+
+        if (!result.valid) {
+            const firstError = Validation.applyErrors(result.errors, fieldMap);
+            errEl.textContent = firstError;
+            errEl.classList.add('visible');
+            return;
+        }
+
         btn.disabled = true;
         btn.textContent = 'Criando conta...';
 
         const { error } = await Auth.signUp(
-            this.$('signupEmail').value,
-            this.$('signupPassword').value,
+            fieldMap.email.value,
+            fieldMap.password.value,
             {
-                name: this.$('signupName').value,
-                whatsapp: this.$('signupWhatsapp').value,
+                name: fieldMap.name.value,
+                whatsapp: fieldMap.whatsapp.value,
                 city: this.$('signupCity').value,
                 state: this.$('signupState').value,
-                bio: this.$('signupBio').value,
+                bio: fieldMap.bio.value,
                 gender: this.$('signupGender').value || null,
-                birth_year: this.$('signupBirthYear').value ? parseInt(this.$('signupBirthYear').value) : null,
+                birth_year: fieldMap.birthYear.value ? parseInt(fieldMap.birthYear.value) : null,
             }
         );
 
@@ -565,6 +642,12 @@ class AcolheBemApp {
         profileAvatarInput.addEventListener('change', e => {
             const file = e.target.files[0];
             if (file) {
+                const check = Validation.avatarFile(file);
+                if (!check.valid) {
+                    ErrorHandler.showToast(check.error, 'warning');
+                    profileAvatarInput.value = '';
+                    return;
+                }
                 const reader = new FileReader();
                 reader.onload = ev => {
                     this.$('profileAvatarPreview').innerHTML = `<img src="${ev.target.result}" alt="Preview">`;
@@ -606,6 +689,8 @@ class AcolheBemApp {
 
         this.$('profileError').classList.remove('visible');
         this.$('profileSuccess').classList.remove('visible');
+        Validation.clearAll(this.$('profileForm'));
+        this.$('profileAvatarInput').value = '';
         this.openOverlay('profileModal');
     }
 
@@ -616,18 +701,48 @@ class AcolheBemApp {
         errEl.classList.remove('visible');
         successEl.classList.remove('visible');
 
+        // Client-side validation
+        const form = this.$('profileForm');
+        Validation.clearAll(form);
+
+        const avatarFile = this.$('profileAvatarInput').files[0];
+
+        const fieldMap = {
+            name: this.$('profileName'),
+            whatsapp: this.$('profileWhatsapp'),
+            bio: this.$('profileBio'),
+            birthYear: this.$('profileBirthYear'),
+            city: this.$('profileCity'),
+            avatar: this.$('profileAvatarInput'),
+        };
+
+        const result = Validation.profileEdit({
+            name: fieldMap.name.value,
+            whatsapp: fieldMap.whatsapp.value,
+            bio: fieldMap.bio.value,
+            birthYear: fieldMap.birthYear.value,
+            city: fieldMap.city.value,
+            avatarFile,
+        });
+
+        if (!result.valid) {
+            const firstError = Validation.applyErrors(result.errors, fieldMap);
+            errEl.textContent = firstError;
+            errEl.classList.add('visible');
+            return;
+        }
+
         const updates = {
-            name: this.$('profileName').value,
-            whatsapp: this.$('profileWhatsapp').value,
+            name: fieldMap.name.value,
+            whatsapp: fieldMap.whatsapp.value,
             city: this.$('profileCity').value || null,
             state: this.$('profileState').value || null,
-            bio: this.$('profileBio').value || null,
+            bio: fieldMap.bio.value || null,
             gender: this.$('profileGender').value || null,
-            birth_year: this.$('profileBirthYear').value ? parseInt(this.$('profileBirthYear').value) : null,
+            birth_year: fieldMap.birthYear.value ? parseInt(fieldMap.birthYear.value) : null,
         };
 
         // Handle avatar upload
-        const avatarFile = this.$('profileAvatarInput').files[0];
         if (avatarFile) {
             const upload = await Profile.uploadAvatar(avatarFile);
             if (upload.url) updates.photo_url = upload.url;
@@ -740,6 +855,16 @@ class AcolheBemApp {
         this.$('filterGender').addEventListener('change', () => this.handleFilterChange());
         this.$('filterAge').addEventListener('change', () => this.handleFilterChange());
 
+        // Feed source tabs (All / Following)
+        this.$$('.feed-source-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.$$('.feed-source-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                this._feedSource = tab.dataset.feedSource;
+                this.loadFeed();
+            });
+        });
+
         // Following view
         this.$('followingBtn').addEventListener('click', () => this.showFollowingView());
         this.$('backFromFollowingBtn').addEventListener('click', () => this.hideFollowingView());
@@ -753,6 +878,23 @@ class AcolheBemApp {
 
         // User posts view
         this.$('backFromUserPostsBtn').addEventListener('click', () => this.hideUserPostsView());
+
+        // Search
+        this.$('searchToggleBtn').addEventListener('click', () => this.showSearch());
+        this.$('searchCloseBtn').addEventListener('click', () => this.hideSearch());
+        this.$('searchInput').addEventListener('input', (e) => {
+            const q = e.target.value.trim();
+            this.$('searchHint').style.display = q.length < 2 ? '' : 'none';
+            Search.debounce(q, (results) => this.renderSearchResults(results, q));
+        });
+        this.$$('.search-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.$$('.search-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                this._searchActiveTab = tab.dataset.searchTab;
+                this.renderSearchResults(this._searchCache, Search._lastQuery);
+            });
+        });
 
     }
 
@@ -806,7 +948,10 @@ class AcolheBemApp {
         this.feedOffset = 0;
         const feedList = this.$('feedList');
         feedList.innerHTML = '';
-        const posts = await Feed.loadPosts(this.currentTopicId, 20, 0);
+
+        const posts = this._feedSource === 'following'
+            ? await Feed.loadFollowingFeed(this.currentTopicId, 20, 0, this._followingSet)
+            : await Feed.loadPosts(this.currentTopicId, 20, 0);
         this.feedOffset = posts.length;
 
         const filtered = this.filterPosts(posts);
@@ -824,7 +969,9 @@ class AcolheBemApp {
     async loadMorePosts() {
         if (this.feedLoading) return;
         this.feedLoading = true;
-        const posts = await Feed.loadPosts(this.currentTopicId, 20, this.feedOffset);
+        const posts = this._feedSource === 'following'
+            ? await Feed.loadFollowingFeed(this.currentTopicId, 20, this.feedOffset, this._followingSet)
+            : await Feed.loadPosts(this.currentTopicId, 20, this.feedOffset);
         this.feedOffset += posts.length;
         const feedList = this.$('feedList');
         const filtered = this.filterPosts(posts);
@@ -838,10 +985,17 @@ class AcolheBemApp {
         const content = composerText.value.trim();
         if (!content) return;
 
+        // Length validation
+        const lenCheck = Validation.text(content, 'postContent');
+        if (!lenCheck.valid) {
+            ErrorHandler.showToast(lenCheck.error, 'warning');
+            return;
+        }
+
         // Content filter check
         const filterResult = ContentFilter.check(content);
         if (filterResult.blocked) {
-            alert(ContentFilter.message(filterResult.type));
+            ErrorHandler.showToast(ContentFilter.message(filterResult.type), 'warning');
             return;
         }
 
@@ -853,7 +1007,7 @@ class AcolheBemApp {
         postBtn.disabled = false;
 
         if (error) {
-            alert(error);
+            ErrorHandler.showToast(error, 'error');
             return;
         }
 
@@ -930,12 +1084,21 @@ class AcolheBemApp {
               </button>`
             : '';
 
+        // DM button: show for non-anon, non-own posts when logged in
+        const dmBtnHTML = showFollowBtn
+            ? `<button class="dm-post-btn" data-user-id="${post.user_id}" data-user-name="${this.escapeHTML(authorName)}" title="Enviar mensagem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                </svg>
+              </button>`
+            : '';
+
         card.innerHTML = `
             <div class="feed-post-header">
                 <div class="feed-post-avatar${isAnon && !isOwn ? ' feed-post-avatar-anon' : ''}">${avatarHTML}</div>
                 <div>
                     ${topicTag}
-                    <div>${nameHTML}${followBtnHTML}</div>
+                    <div>${nameHTML}${followBtnHTML}${dmBtnHTML}</div>
                     <div class="feed-post-date">${date}</div>
                 </div>
                 ${isOwn ? '<button class="feed-post-delete" title="Excluir">excluir</button>' : (this.currentProfile?.is_admin ? '<button class="feed-post-delete admin-delete" title="Excluir (admin)">excluir</button>' : '')}
@@ -986,9 +1149,23 @@ class AcolheBemApp {
                         followBtn.classList.add('following');
                         followBtn.title = 'Deixar de seguir';
                         followBtn.querySelector('svg').innerHTML = '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>';
+                        // Notify the followed user
+                        const actorName = this.currentProfile?.name || 'Alguem';
+                        Notifications.notifyFollow(targetUserId, actorName);
                     }
                 }
                 followBtn.disabled = false;
+            });
+        }
+
+        // DM button handler
+        const dmPostBtn = card.querySelector('.dm-post-btn');
+        if (dmPostBtn) {
+            dmPostBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const userId = dmPostBtn.dataset.userId;
+                const userName = dmPostBtn.dataset.userName;
+                this.openDMWith(userId, userName);
             });
         }
 
@@ -1050,10 +1227,17 @@ class AcolheBemApp {
                 const content = replyInput.value.trim();
                 if (!content) return;
 
+                // Length validation
+                const lenCheck = Validation.text(content, 'replyContent');
+                if (!lenCheck.valid) {
+                    ErrorHandler.showToast(lenCheck.error, 'warning');
+                    return;
+                }
+
                 // Content filter check
                 const filterResult = ContentFilter.check(content);
                 if (filterResult.blocked) {
-                    alert(ContentFilter.message(filterResult.type));
+                    ErrorHandler.showToast(ContentFilter.message(filterResult.type), 'warning');
                     return;
                 }
 
@@ -1188,6 +1372,11 @@ class AcolheBemApp {
         // hide admin panel if open
         this.$('adminSection').style.display = 'none';
 
+        // hide DM views if open
+        this.$('dmListView').style.display = 'none';
+        this.$('dmChatView').style.display = 'none';
+        this._dmConversationId = null;
+
         // update tab buttons
         this.$$('.tab-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tab);
@@ -1298,7 +1487,7 @@ class AcolheBemApp {
 
             this.psiAvailableFetched = true;
         } catch (err) {
-            console.error('psi-available fetch error:', err);
+            ErrorHandler.handle('app.psiAvailableFetch', err, { silent: true });
             loadingEl.style.display = 'none';
             errorEl.style.display = '';
         }
@@ -1491,6 +1680,8 @@ class AcolheBemApp {
         this.$('topicFeedView').style.display = 'none';
         this.$('followingView').style.display = 'none';
         this.$('userPostsView').style.display = 'none';
+        this.$('dmListView').style.display = 'none';
+        this.$('dmChatView').style.display = 'none';
         this.currentTopicId = null;
         this.currentTopicData = null;
 
@@ -1655,6 +1846,8 @@ class AcolheBemApp {
         this.$('topicFeedView').style.display = '';
         this.$('followingView').style.display = 'none';
         this.$('userPostsView').style.display = 'none';
+        this.$('dmListView').style.display = 'none';
+        this.$('dmChatView').style.display = 'none';
         this.$('topicFeedTitle').innerHTML = `<span>${topicData.emoji}</span> ${this.escapeHTML(topicData.name)}`;
         this._renderSubscribeBtn(topicId);
         this.updateFeedComposerVisibility();
@@ -1662,6 +1855,10 @@ class AcolheBemApp {
         this.$('filterGender').value = '';
         this.$('filterAge').value = '';
         this.$('anonCheckbox').checked = false;
+        this._feedSource = 'all';
+        this.$$('.feed-source-tab').forEach(t => t.classList.toggle('active', t.dataset.feedSource === 'all'));
+        // Show feed source tabs only when logged in and following someone
+        this.$('feedSourceTabs').style.display = (this.currentUser && this._followingSet.size > 0) ? '' : 'none';
 
         // Populate topic summary if category data is available
         const summary = this.$('topicSummary');
@@ -1768,7 +1965,7 @@ class AcolheBemApp {
             this._followingData = follows;
             this._followingSet = new Set(follows.map(f => f.following_id));
         } catch (e) {
-            console.error('_loadFollowingCache:', e);
+            ErrorHandler.handle('app._loadFollowingCache', e, { silent: true });
         }
     }
 
@@ -1776,6 +1973,8 @@ class AcolheBemApp {
         this.$('topicsView').style.display = 'none';
         this.$('topicFeedView').style.display = 'none';
         this.$('userPostsView').style.display = 'none';
+        this.$('dmListView').style.display = 'none';
+        this.$('dmChatView').style.display = 'none';
         this.$('followingView').style.display = '';
 
         // Reset to "users" tab
@@ -1783,6 +1982,129 @@ class AcolheBemApp {
 
         // Reload cache then render
         this._loadFollowingCache().then(() => this.renderFollowingList('users'));
+
+        // Load follow counts
+        this._updateFollowCounts();
+    }
+
+    async _updateFollowCounts() {
+        if (!this.currentUser) return;
+        const counts = await Feed.getFollowCounts(this.currentUser.id);
+        const followingEl = this.$('followingCount');
+        const followersEl = this.$('followersCount');
+        if (followingEl) followingEl.textContent = counts.following;
+        if (followersEl) followersEl.textContent = counts.followers;
+    }
+
+    // ===== SEARCH =====
+
+    showSearch() {
+        this.$('searchView').style.display = '';
+        this.$('mainBody').style.display = 'none';
+        this.$('communitySection')  && (this.$('communitySection').style.display = 'none');
+        this.$('psicologosSection') && (this.$('psicologosSection').style.display = 'none');
+        this.$('searchInput').value = '';
+        this.$('searchResults').innerHTML = '';
+        this.$('searchEmpty').style.display = 'none';
+        this.$('searchHint').style.display = '';
+        this._searchActiveTab = 'posts';
+        this.$$('.search-tab').forEach(t => t.classList.toggle('active', t.dataset.searchTab === 'posts'));
+        setTimeout(() => this.$('searchInput').focus(), 100);
+    }
+
+    hideSearch() {
+        this.$('searchView').style.display = 'none';
+        Search.clearCache();
+        // Restore the current tab view
+        this.switchTab(this.currentTab);
+    }
+
+    renderSearchResults(results, query) {
+        this._searchCache = results;
+        const container = this.$('searchResults');
+        const empty = this.$('searchEmpty');
+        container.innerHTML = '';
+
+        const tab = this._searchActiveTab;
+        const items = results[tab] || [];
+
+        if (!query || query.length < 2) {
+            empty.style.display = 'none';
+            return;
+        }
+
+        if (items.length === 0) {
+            empty.style.display = '';
+            return;
+        }
+        empty.style.display = 'none';
+
+        if (tab === 'posts') {
+            items.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'search-result-post';
+                const excerpt = Search.excerpt(p.content, query, 200);
+                div.innerHTML = `
+                    <div class="search-result-post-header">
+                        <span class="search-result-post-author">${this.escapeHTML(p.author_name)}</span>
+                        ${p.topic_name ? `<span class="search-result-post-topic">${p.topic_emoji || ''} ${this.escapeHTML(p.topic_name)}</span>` : ''}
+                    </div>
+                    <div class="search-result-post-content">${Search.highlight(excerpt, query)}</div>
+                `;
+                div.addEventListener('click', () => {
+                    this.hideSearch();
+                    if (p.topic_id) {
+                        const topicData = this._dbTopicsMap?.[p.topic_id] || { name: p.topic_name, emoji: p.topic_emoji };
+                        this.switchTab('community');
+                        this.showTopicFeed(p.topic_id, topicData);
+                    }
+                });
+                container.appendChild(div);
+            });
+        } else if (tab === 'profiles') {
+            items.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'search-result-profile';
+                const initial = (p.name || 'U')[0].toUpperCase();
+                const avatarHTML = p.photo_url
+                    ? `<img src="${p.photo_url}" alt="${this.escapeHTML(p.name)}">`
+                    : initial;
+                const psiBadge = p.is_psi ? ' <span class="psi-badge">Psi.</span>' : '';
+                const bioHTML = p.bio ? `<div class="search-result-profile-bio">${Search.highlight(Search.excerpt(p.bio, query, 80), query)}</div>` : '';
+                div.innerHTML = `
+                    <div class="search-result-profile-avatar">${avatarHTML}</div>
+                    <div class="search-result-profile-info">
+                        <div class="search-result-profile-name">${Search.highlight(p.name, query)}${psiBadge}</div>
+                        ${bioHTML}
+                    </div>
+                `;
+                div.addEventListener('click', () => {
+                    this.hideSearch();
+                    this.switchTab('community');
+                    this.showUserPosts(p.id, p.name);
+                });
+                container.appendChild(div);
+            });
+        } else if (tab === 'topics') {
+            items.forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'search-result-topic';
+                div.innerHTML = `
+                    <span class="search-result-topic-emoji">${t.emoji || '💬'}</span>
+                    <div class="search-result-topic-info">
+                        <div class="search-result-topic-name">${Search.highlight(t.name, query)}</div>
+                        ${t.description ? `<div class="search-result-topic-desc">${this.escapeHTML(t.description)}</div>` : ''}
+                    </div>
+                    <span class="search-result-topic-count">${t.post_count || 0} posts</span>
+                `;
+                div.addEventListener('click', () => {
+                    this.hideSearch();
+                    this.switchTab('community');
+                    this.showTopicFeed(t.id, { name: t.name, emoji: t.emoji });
+                });
+                container.appendChild(div);
+            });
+        }
     }
 
     hideFollowingView() {
@@ -1862,6 +2184,8 @@ class AcolheBemApp {
         this.$('followingView').style.display = 'none';
         this.$('topicsView').style.display = 'none';
         this.$('topicFeedView').style.display = 'none';
+        this.$('dmListView').style.display = 'none';
+        this.$('dmChatView').style.display = 'none';
         this.$('userPostsView').style.display = '';
 
         this.$('userPostsTitle').textContent = `Posts de ${userName}`;
@@ -1920,12 +2244,35 @@ class AcolheBemApp {
         const btn = this.$('createTopicSubmitBtn');
         const errEl = this.$('createTopicError');
         errEl.classList.remove('visible');
+
+        // Client-side validation
+        const form = this.$('createTopicForm');
+        Validation.clearAll(form);
+
+        const nameField = this.$('topicName');
+        const emojiField = this.$('topicEmoji');
+        const descField = this.$('topicDescription');
+
+        const fieldMap = { name: nameField, emoji: emojiField, description: descField };
+        const result = Validation.topicCreate({
+            name: nameField.value.trim(),
+            emoji: emojiField.value.trim(),
+            description: descField.value.trim(),
+        });
+
+        if (!result.valid) {
+            const firstError = Validation.applyErrors(result.errors, fieldMap);
+            errEl.textContent = firstError;
+            errEl.classList.add('visible');
+            return;
+        }
+
         btn.disabled = true;
         btn.textContent = 'Criando...';
 
-        const name = this.$('topicName').value.trim();
-        const emoji = this.$('topicEmoji').value.trim() || '💬';
-        const description = this.$('topicDescription').value.trim();
+        const name = nameField.value.trim();
+        const emoji = emojiField.value.trim() || '💬';
+        const description = descField.value.trim();
 
         const { topic, error } = await Feed.createTopic(name, emoji, description);
         btn.disabled = false;
@@ -2691,7 +3038,7 @@ class AcolheBemApp {
                 const { error } = await Feed.updateTopic(t.id, updates);
                 saveBtn.disabled = false;
                 if (error) {
-                    alert('Erro ao salvar: ' + error);
+                    ErrorHandler.showToast('Erro ao salvar: ' + error, 'error');
                 } else {
                     savedMsg.style.display = '';
                     setTimeout(() => { savedMsg.style.display = 'none'; }, 2000);
@@ -2767,7 +3114,7 @@ class AcolheBemApp {
                 list.appendChild(item);
             });
         } catch (e) {
-            console.error('loadAdminFilters:', e);
+            ErrorHandler.handle('app.loadAdminFilters', e, { silent: true });
             list.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar filtros.</div>';
         }
     }
@@ -2794,12 +3141,294 @@ class AcolheBemApp {
                 }
             }
         } catch (e) {
-            console.error('toggleAdminFilter:', e);
+            ErrorHandler.handle('app.toggleAdminFilter', e);
             // Revert checkbox on error
             if (checkbox) checkbox.checked = !enabled;
             if (statusEl) statusEl.textContent = !enabled ? 'Ativo' : 'Inativo';
-            alert('Erro ao atualizar filtro. Tente novamente.');
         }
+    }
+
+    // ========================================
+    //  DIRECT MESSAGES (DM)
+    // ========================================
+
+    initDM() {
+        // DM topbar button
+        this.$('dmBtn').addEventListener('click', () => this.showDMList());
+
+        // Back from DM list
+        this.$('backFromDMListBtn').addEventListener('click', () => this.hideDMList());
+
+        // Back from DM chat
+        this.$('backFromDMChatBtn').addEventListener('click', () => this.hideDMChat());
+
+        // DM send button
+        this.$('dmSendBtn').addEventListener('click', () => this.handleSendDM());
+
+        // DM composer: enable/disable send button, Enter to send
+        const dmText = this.$('dmComposerText');
+        dmText.addEventListener('input', () => {
+            this.$('dmSendBtn').disabled = !dmText.value.trim();
+            // Auto-resize textarea
+            dmText.style.height = 'auto';
+            dmText.style.height = Math.min(dmText.scrollHeight, 120) + 'px';
+        });
+        dmText.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (dmText.value.trim()) this.handleSendDM();
+            }
+        });
+    }
+
+    async showDMList() {
+        // Hide other views, show DM list
+        this.$('topicsView').style.display = 'none';
+        this.$('topicFeedView').style.display = 'none';
+        this.$('followingView').style.display = 'none';
+        this.$('userPostsView').style.display = 'none';
+        this.$('dmChatView').style.display = 'none';
+        this.$('dmListView').style.display = '';
+
+        // Ensure community section is visible
+        if (this.currentTab !== 'community') {
+            this.switchTab('community');
+        }
+        this.$('mainBody').style.display = 'none';
+        this.$('communitySection').style.display = '';
+
+        // Load conversations
+        const conversations = await Messages.getConversations();
+        this.renderConversationList(conversations);
+    }
+
+    hideDMList() {
+        this.$('dmListView').style.display = 'none';
+        // Return to current community view
+        if (this.currentTopicId) {
+            this.showTopicFeed(this.currentTopicId, this.currentTopicData);
+        } else {
+            this.showTopicsListing();
+        }
+    }
+
+    async showDMChat(convId, otherUser) {
+        this._dmConversationId = convId;
+        this._dmOtherUser = otherUser;
+
+        // Hide DM list, show chat
+        this.$('dmListView').style.display = 'none';
+        this.$('topicsView').style.display = 'none';
+        this.$('topicFeedView').style.display = 'none';
+        this.$('followingView').style.display = 'none';
+        this.$('userPostsView').style.display = 'none';
+        this.$('dmChatView').style.display = 'flex';
+
+        // Ensure community section is visible
+        this.$('mainBody').style.display = 'none';
+        this.$('communitySection').style.display = '';
+
+        // Set header
+        const avatarEl = this.$('dmChatAvatar');
+        if (otherUser.photo) {
+            avatarEl.innerHTML = `<img src="${otherUser.photo}" alt="${this.escapeHTML(otherUser.name)}">`;
+        } else {
+            const initial = (otherUser.name || 'U')[0].toUpperCase();
+            avatarEl.innerHTML = `<span class="avatar-initial">${initial}</span>`;
+        }
+        this.$('dmChatName').textContent = otherUser.name || 'Usuario';
+
+        // Clear composer
+        this.$('dmComposerText').value = '';
+        this.$('dmSendBtn').disabled = true;
+
+        // Load messages
+        const messages = await Messages.loadMessages(convId);
+        this.renderMessages(messages);
+
+        // Mark as read
+        await Messages.markAsRead(convId);
+    }
+
+    hideDMChat() {
+        this.$('dmChatView').style.display = 'none';
+        this._dmConversationId = null;
+        this._dmOtherUser = null;
+        // Return to DM list
+        this.showDMList();
+    }
+
+    async handleSendDM() {
+        const textarea = this.$('dmComposerText');
+        const content = textarea.value.trim();
+        if (!content || !this._dmConversationId) return;
+
+        // Validate
+        const lenCheck = Validation.text(content, 'messageContent');
+        if (!lenCheck.valid) {
+            ErrorHandler.showToast(lenCheck.error, 'warning');
+            return;
+        }
+
+        // Content filter
+        const filterResult = ContentFilter.check(content);
+        if (filterResult.blocked) {
+            ErrorHandler.showToast(ContentFilter.message(filterResult.type), 'warning');
+            return;
+        }
+
+        // Send
+        this.$('dmSendBtn').disabled = true;
+        const { message, error } = await Messages.sendMessage(this._dmConversationId, content);
+        if (error) {
+            this.$('dmSendBtn').disabled = false;
+            return;
+        }
+
+        // Append sent message to chat
+        this.appendMessage(message);
+        textarea.value = '';
+        textarea.style.height = 'auto';
+        this.$('dmSendBtn').disabled = true;
+    }
+
+    async openDMWith(userId, userName) {
+        if (!this.currentUser) {
+            this.openOverlay('authModal');
+            return;
+        }
+
+        const convId = await Messages.getOrCreateConversation(userId);
+        if (!convId) return;
+
+        this.showDMChat(convId, { id: userId, name: userName, photo: null });
+    }
+
+    renderConversationList(conversations) {
+        const list = this.$('dmConvList');
+        const empty = this.$('dmListEmpty');
+
+        if (!conversations || conversations.length === 0) {
+            list.innerHTML = '';
+            empty.style.display = '';
+            return;
+        }
+
+        empty.style.display = 'none';
+        list.innerHTML = conversations.map(c => {
+            const unread = c.unread_count > 0;
+            const initial = (c.other_user_name || 'U')[0].toUpperCase();
+            const avatarHTML = c.other_user_photo
+                ? `<img src="${c.other_user_photo}" alt="${this.escapeHTML(c.other_user_name)}">`
+                : `<span class="avatar-initial">${initial}</span>`;
+            const time = c.last_message_at ? this._dmTimeAgo(c.last_message_at) : '';
+            const preview = c.last_message
+                ? this.escapeHTML(c.last_message.substring(0, 60))
+                : '<em>Nova conversa</em>';
+
+            return `
+                <div class="dm-conv-card${unread ? ' unread' : ''}"
+                     data-conv-id="${c.conversation_id}"
+                     data-other-id="${c.other_user_id}"
+                     data-other-name="${this.escapeHTML(c.other_user_name || '')}"
+                     data-other-photo="${c.other_user_photo || ''}">
+                    <div class="dm-conv-avatar">${avatarHTML}</div>
+                    <div class="dm-conv-info">
+                        <div class="dm-conv-name">${this.escapeHTML(c.other_user_name || 'Usuario')}</div>
+                        <div class="dm-conv-preview">${preview}</div>
+                    </div>
+                    <div class="dm-conv-meta">
+                        <span class="dm-conv-time">${time}</span>
+                        ${unread ? '<div class="dm-conv-unread-dot"></div>' : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Click handlers for conversation cards
+        list.querySelectorAll('.dm-conv-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const convId = card.dataset.convId;
+                const otherUser = {
+                    id: card.dataset.otherId,
+                    name: card.dataset.otherName,
+                    photo: card.dataset.otherPhoto || null,
+                };
+                this.showDMChat(convId, otherUser);
+            });
+        });
+    }
+
+    renderMessages(messages) {
+        const list = this.$('dmMessagesList');
+        list.innerHTML = '';
+
+        if (!messages || messages.length === 0) return;
+
+        let lastDate = '';
+        messages.forEach(msg => {
+            // Date separator
+            const msgDate = new Date(msg.created_at).toLocaleDateString('pt-BR');
+            if (msgDate !== lastDate) {
+                lastDate = msgDate;
+                const sep = document.createElement('div');
+                sep.className = 'dm-date-sep';
+                sep.textContent = msgDate;
+                list.appendChild(sep);
+            }
+
+            list.appendChild(this._buildMessageEl(msg));
+        });
+
+        // Scroll to bottom
+        list.scrollTop = list.scrollHeight;
+    }
+
+    appendMessage(msg) {
+        const list = this.$('dmMessagesList');
+        list.appendChild(this._buildMessageEl(msg));
+        list.scrollTop = list.scrollHeight;
+    }
+
+    _buildMessageEl(msg) {
+        const isSent = msg.sender_id === this.currentUser?.id;
+        const el = document.createElement('div');
+        el.className = `dm-message ${isSent ? 'dm-message-sent' : 'dm-message-received'}`;
+        el.dataset.messageId = msg.id;
+
+        const time = new Date(msg.created_at).toLocaleTimeString('pt-BR', {
+            hour: '2-digit', minute: '2-digit'
+        });
+
+        const readIndicator = isSent
+            ? `<span class="dm-read-indicator${msg.read_at ? ' read' : ''}">✓✓</span>`
+            : '';
+
+        el.innerHTML = `
+            <div>${this.escapeHTML(msg.content)}</div>
+            <div class="dm-message-time">${time}${readIndicator}</div>
+        `;
+        return el;
+    }
+
+    _onRealtimeDM(msg) {
+        // If the chat for this conversation is currently open, append the message
+        if (this._dmConversationId && msg.conversation_id === this._dmConversationId) {
+            this.appendMessage(msg);
+            // Mark as read since user is viewing
+            Messages.markAsRead(this._dmConversationId);
+        }
+    }
+
+    _dmTimeAgo(dateStr) {
+        const now = new Date();
+        const date = new Date(dateStr);
+        const diff = Math.floor((now - date) / 1000);
+        if (diff < 60) return 'agora';
+        if (diff < 3600) return Math.floor(diff / 60) + ' min';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+        if (diff < 604800) return Math.floor(diff / 86400) + 'd';
+        return date.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' });
     }
 
     sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
