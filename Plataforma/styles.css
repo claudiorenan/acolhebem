@@ -1423,6 +1423,7 @@ img,svg{display:block}
     padding:20px;
     max-width:800px;
     margin:0 auto;
+    overflow:hidden;
 }
 .admin-header{
     display:flex;align-items:center;gap:12px;margin-bottom:20px;
@@ -1433,12 +1434,15 @@ img,svg{display:block}
 .admin-tabs{
     display:flex;gap:4px;margin-bottom:20px;
     background:var(--ink-05);border-radius:var(--r-md);padding:4px;
+    overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;max-width:100%;
 }
+.admin-tabs::-webkit-scrollbar{display:none}
 .admin-tab{
-    flex:1;padding:10px 16px;border:none;
+    padding:10px 16px;border:none;
     background:transparent;color:var(--ink-40);
     font-size:.85rem;font-weight:600;font-family:var(--f-body);
-    border-radius:12px;cursor:pointer;
+    border-radius:12px;cursor:pointer;white-space:nowrap;flex-shrink:0;
     transition:all var(--dur-fast);
 }
 .admin-tab.active{
@@ -1596,6 +1600,7 @@ img,svg{display:block}
     .community-filters{gap:8px}
     .filter-select{padding:6px 10px;font-size:.78rem}
     .admin-section{padding:14px 10px}
+    .admin-tab{padding:8px 12px;font-size:.78rem}
     .admin-post-meta{font-size:.75rem}
     .admin-post-actions{flex-wrap:wrap}
     .admin-member-item{padding:10px 12px;gap:10px}
