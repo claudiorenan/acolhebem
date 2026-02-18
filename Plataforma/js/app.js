@@ -181,6 +181,8 @@ class AcolheBemApp {
         this._currentCategoryData = null;
         this._backToTab = null;
         this.psiAvailableFetched = false;
+        this._followingSet = new Set();
+        this._followingData = [];
         this.init();
     }
 
@@ -322,6 +324,9 @@ class AcolheBemApp {
                 // Init notifications
                 Notifications.init(session.user.id);
                 this.$('notifBtn').style.display = '';
+                // Load following cache
+                this._loadFollowingCache();
+                this.$('followingBtn').style.display = '';
             } else {
                 this.currentUser = null;
                 this.currentProfile = null;
@@ -329,6 +334,9 @@ class AcolheBemApp {
                 // Destroy notifications
                 Notifications.destroy();
                 this.$('notifBtn').style.display = 'none';
+                this._followingSet = new Set();
+                this._followingData = [];
+                this.$('followingBtn').style.display = 'none';
             }
         });
 
@@ -342,6 +350,8 @@ class AcolheBemApp {
                     this.updateTopbarUser();
                     Notifications.init(user.id);
                     this.$('notifBtn').style.display = '';
+                    this._loadFollowingCache();
+                    this.$('followingBtn').style.display = '';
                 }
             }
         }, 2000);
@@ -730,6 +740,20 @@ class AcolheBemApp {
         this.$('filterGender').addEventListener('change', () => this.handleFilterChange());
         this.$('filterAge').addEventListener('change', () => this.handleFilterChange());
 
+        // Following view
+        this.$('followingBtn').addEventListener('click', () => this.showFollowingView());
+        this.$('backFromFollowingBtn').addEventListener('click', () => this.hideFollowingView());
+        this.$$('.following-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                this.$$('.following-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                this.renderFollowingList(tab.dataset.followingTab);
+            });
+        });
+
+        // User posts view
+        this.$('backFromUserPostsBtn').addEventListener('click', () => this.hideUserPostsView());
+
     }
 
     updateFeedComposerVisibility() {
@@ -893,12 +917,25 @@ class AcolheBemApp {
             ? `<div class="feed-post-topic">${post.topics.emoji || ''} ${this.escapeHTML(post.topics.name || '')}</div>`
             : '';
 
+        // Follow button: show for non-anon, non-own posts when logged in
+        const showFollowBtn = this.currentUser && !isAnon && !isOwn;
+        const isFollowing = showFollowBtn && this._followingSet.has(post.user_id);
+        const followBtnHTML = showFollowBtn
+            ? `<button class="follow-btn${isFollowing ? ' following' : ''}" data-user-id="${post.user_id}" title="${isFollowing ? 'Deixar de seguir' : 'Seguir'}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+                    ${isFollowing
+                        ? '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>'
+                        : '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>'}
+                </svg>
+              </button>`
+            : '';
+
         card.innerHTML = `
             <div class="feed-post-header">
                 <div class="feed-post-avatar${isAnon && !isOwn ? ' feed-post-avatar-anon' : ''}">${avatarHTML}</div>
                 <div>
                     ${topicTag}
-                    <div>${nameHTML}</div>
+                    <div>${nameHTML}${followBtnHTML}</div>
                     <div class="feed-post-date">${date}</div>
                 </div>
                 ${isOwn ? '<button class="feed-post-delete" title="Excluir">excluir</button>' : (this.currentProfile?.is_admin ? '<button class="feed-post-delete admin-delete" title="Excluir (admin)">excluir</button>' : '')}
@@ -924,6 +961,36 @@ class AcolheBemApp {
                 </div>` : ''}
             </div>
         `;
+
+        // Follow button handler
+        const followBtn = card.querySelector('.follow-btn');
+        if (followBtn) {
+            followBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                followBtn.disabled = true;
+                const targetUserId = followBtn.dataset.userId;
+                const isCurrentlyFollowing = followBtn.classList.contains('following');
+
+                if (isCurrentlyFollowing) {
+                    const { error } = await Feed.unfollowUser(targetUserId);
+                    if (!error) {
+                        this._followingSet.delete(targetUserId);
+                        followBtn.classList.remove('following');
+                        followBtn.title = 'Seguir';
+                        followBtn.querySelector('svg').innerHTML = '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>';
+                    }
+                } else {
+                    const { error } = await Feed.followUser(targetUserId);
+                    if (!error) {
+                        this._followingSet.add(targetUserId);
+                        followBtn.classList.add('following');
+                        followBtn.title = 'Deixar de seguir';
+                        followBtn.querySelector('svg').innerHTML = '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>';
+                    }
+                }
+                followBtn.disabled = false;
+            });
+        }
 
         // Delete handler
         const deleteBtn = card.querySelector('.feed-post-delete');
@@ -1422,6 +1489,8 @@ class AcolheBemApp {
     showTopicsListing() {
         this.$('topicsView').style.display = '';
         this.$('topicFeedView').style.display = 'none';
+        this.$('followingView').style.display = 'none';
+        this.$('userPostsView').style.display = 'none';
         this.currentTopicId = null;
         this.currentTopicData = null;
 
@@ -1584,6 +1653,8 @@ class AcolheBemApp {
     async showTopicFeed(topicId, topicData) {
         this.$('topicsView').style.display = 'none';
         this.$('topicFeedView').style.display = '';
+        this.$('followingView').style.display = 'none';
+        this.$('userPostsView').style.display = 'none';
         this.$('topicFeedTitle').innerHTML = `<span>${topicData.emoji}</span> ${this.escapeHTML(topicData.name)}`;
         this._renderSubscribeBtn(topicId);
         this.updateFeedComposerVisibility();
@@ -1685,6 +1756,135 @@ class AcolheBemApp {
             btn.querySelector('span').textContent = 'Notificar';
             btn.querySelector('svg').setAttribute('fill', 'none');
         }
+    }
+
+    // ========================================
+    //  FOLLOW / FOLLOWING
+    // ========================================
+
+    async _loadFollowingCache() {
+        try {
+            const follows = await Feed.getFollowing();
+            this._followingData = follows;
+            this._followingSet = new Set(follows.map(f => f.following_id));
+        } catch (e) {
+            console.error('_loadFollowingCache:', e);
+        }
+    }
+
+    showFollowingView() {
+        this.$('topicsView').style.display = 'none';
+        this.$('topicFeedView').style.display = 'none';
+        this.$('userPostsView').style.display = 'none';
+        this.$('followingView').style.display = '';
+
+        // Reset to "users" tab
+        this.$$('.following-tab').forEach(t => t.classList.toggle('active', t.dataset.followingTab === 'users'));
+
+        // Reload cache then render
+        this._loadFollowingCache().then(() => this.renderFollowingList('users'));
+    }
+
+    hideFollowingView() {
+        this.$('followingView').style.display = 'none';
+        this.$('topicsView').style.display = '';
+    }
+
+    renderFollowingList(filter) {
+        const list = this.$('followingList');
+        const empty = this.$('followingEmpty');
+        list.innerHTML = '';
+
+        const filtered = filter === 'psi'
+            ? this._followingData.filter(f => f.is_psi)
+            : this._followingData.filter(f => !f.is_psi);
+
+        if (filtered.length === 0) {
+            empty.style.display = '';
+            return;
+        }
+        empty.style.display = 'none';
+
+        filtered.forEach(f => {
+            const card = document.createElement('div');
+            card.className = 'following-user-card';
+
+            const initial = (f.name || 'U')[0].toUpperCase();
+            const avatarHTML = f.photo_url
+                ? `<img src="${f.photo_url}" alt="${this.escapeHTML(f.name)}" class="following-user-avatar">`
+                : `<div class="following-user-avatar following-user-avatar-initial">${initial}</div>`;
+
+            const psiBadge = f.is_psi ? '<span class="psi-badge">Psi.</span>' : '';
+
+            card.innerHTML = `
+                ${avatarHTML}
+                <div class="following-user-info">
+                    <span class="following-user-name">${this.escapeHTML(f.name)}${psiBadge}</span>
+                </div>
+                <button class="follow-btn following" data-user-id="${f.following_id}" title="Deixar de seguir">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>
+                    </svg>
+                </button>
+            `;
+
+            // Click card to see user's posts
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('.follow-btn')) return;
+                this.showUserPosts(f.following_id, f.name);
+            });
+
+            // Unfollow button
+            const unfollowBtn = card.querySelector('.follow-btn');
+            unfollowBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                unfollowBtn.disabled = true;
+                const { error } = await Feed.unfollowUser(f.following_id);
+                if (!error) {
+                    this._followingSet.delete(f.following_id);
+                    this._followingData = this._followingData.filter(x => x.following_id !== f.following_id);
+                    card.remove();
+                    // Re-check empty state
+                    const currentFilter = document.querySelector('.following-tab.active')?.dataset.followingTab || 'users';
+                    const remaining = currentFilter === 'psi'
+                        ? this._followingData.filter(x => x.is_psi)
+                        : this._followingData.filter(x => !x.is_psi);
+                    if (remaining.length === 0) this.$('followingEmpty').style.display = '';
+                }
+                unfollowBtn.disabled = false;
+            });
+
+            list.appendChild(card);
+        });
+    }
+
+    async showUserPosts(userId, userName) {
+        this.$('followingView').style.display = 'none';
+        this.$('topicsView').style.display = 'none';
+        this.$('topicFeedView').style.display = 'none';
+        this.$('userPostsView').style.display = '';
+
+        this.$('userPostsTitle').textContent = `Posts de ${userName}`;
+        const postsList = this.$('userPostsList');
+        const empty = this.$('userPostsEmpty');
+        postsList.innerHTML = '<div class="feed-loading">Carregando...</div>';
+        empty.style.display = 'none';
+
+        const posts = await Feed.loadUserPosts(userId);
+        postsList.innerHTML = '';
+
+        if (posts.length === 0) {
+            empty.style.display = '';
+            return;
+        }
+
+        posts.forEach(p => postsList.appendChild(this.buildPostCard(p)));
+    }
+
+    hideUserPostsView() {
+        this.$('userPostsView').style.display = 'none';
+        // Go back to following view
+        this.$('followingView').style.display = '';
     }
 
     handleBackToTopics() {

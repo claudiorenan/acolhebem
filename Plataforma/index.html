@@ -194,16 +194,26 @@
                 <div id="topicsView">
                     <div class="community-header">
                         <h2 class="community-title">Comunidade</h2>
-                        <a href="https://ugc.cademeupsi.com.br/cadastro/influenciado"
-                           target="_blank" rel="noopener noreferrer" class="ugc-btn">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                 width="16" height="16">
-                                <path d="M15.6 11.6L22 7v10l-6.4-4.6"/>
-                                <rect x="2" y="7" width="14" height="10" rx="2"/>
-                            </svg>
-                            Criar conteudo
-                        </a>
+                        <div class="community-header-actions">
+                            <button class="following-header-btn" id="followingBtn" style="display:none">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <polyline points="16 11 18 13 22 9"/>
+                                </svg>
+                                Seguindo
+                            </button>
+                            <a href="https://ugc.cademeupsi.com.br/cadastro/influenciado"
+                               target="_blank" rel="noopener noreferrer" class="ugc-btn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                     width="16" height="16">
+                                    <path d="M15.6 11.6L22 7v10l-6.4-4.6"/>
+                                    <rect x="2" y="7" width="14" height="10" rx="2"/>
+                                </svg>
+                                Criar conteudo
+                            </a>
+                        </div>
                     </div>
                     <div id="topicsList" class="topics-list"></div>
                 </div>
@@ -271,6 +281,43 @@
                         <p class="feed-empty-sub">Seja o primeiro a compartilhar!</p>
                     </div>
                     <button id="feedLoadMore" class="feed-load-more" style="display:none">Carregar mais</button>
+                </div>
+
+                <!-- ===== FOLLOWING VIEW ===== -->
+                <div id="followingView" class="following-view" style="display:none">
+                    <div class="following-view-header">
+                        <button class="back-btn" id="backFromFollowingBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            <span>Voltar</span>
+                        </button>
+                        <h3 class="following-view-title">Seguindo</h3>
+                    </div>
+                    <div class="following-tabs">
+                        <button class="following-tab active" data-following-tab="users">Usuarios</button>
+                        <button class="following-tab" data-following-tab="psi">Psicologos</button>
+                    </div>
+                    <div id="followingList" class="following-list"></div>
+                    <div id="followingEmpty" class="following-empty" style="display:none">
+                        <span class="following-empty-icon">👤</span>
+                        <p>Voce ainda nao segue ninguem.</p>
+                        <p class="following-empty-sub">Siga pessoas pelos posts na comunidade!</p>
+                    </div>
+                </div>
+
+                <!-- ===== USER POSTS VIEW ===== -->
+                <div id="userPostsView" class="user-posts-view" style="display:none">
+                    <div class="user-posts-header">
+                        <button class="back-btn" id="backFromUserPostsBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            <span>Voltar</span>
+                        </button>
+                        <h3 class="user-posts-title" id="userPostsTitle">Posts</h3>
+                    </div>
+                    <div id="userPostsList" class="feed-list"></div>
+                    <div id="userPostsEmpty" class="feed-empty" style="display:none">
+                        <span class="feed-empty-icon">📝</span>
+                        <p>Nenhuma publicacao encontrada.</p>
+                    </div>
                 </div>
             </div>
 

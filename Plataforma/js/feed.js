@@ -444,6 +444,163 @@ const Feed = {
     return !!data;
   },
 
+  // ========================================
+  //  USER FOLLOWS
+  // ========================================
+
+  /**
+   * Follow a user.
+   * @param {string} targetUserId
+   * @returns {Promise<{error: string|null}>}
+   */
+  async followUser(targetUserId) {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return { error: 'Faca login para seguir.' };
+
+    const { error } = await sb
+      .from('user_follows')
+      .insert({ follower_id: user.id, following_id: targetUserId });
+
+    if (error) {
+      if (error.code === '23505') return { error: null }; // already following
+      return { error: error.message };
+    }
+    return { error: null };
+  },
+
+  /**
+   * Unfollow a user.
+   * @param {string} targetUserId
+   * @returns {Promise<{error: string|null}>}
+   */
+  async unfollowUser(targetUserId) {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return { error: 'Faca login.' };
+
+    const { error } = await sb
+      .from('user_follows')
+      .delete()
+      .eq('follower_id', user.id)
+      .eq('following_id', targetUserId);
+
+    if (error) return { error: error.message };
+    return { error: null };
+  },
+
+  /**
+   * Check if current user follows a target user.
+   * @param {string} targetUserId
+   * @returns {Promise<boolean>}
+   */
+  async isFollowing(targetUserId) {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return false;
+
+    const { data } = await sb
+      .from('user_follows')
+      .select('id')
+      .eq('follower_id', user.id)
+      .eq('following_id', targetUserId)
+      .maybeSingle();
+
+    return !!data;
+  },
+
+  /**
+   * Get all users the current user is following, with profile info.
+   * @returns {Promise<object[]>}
+   */
+  async getFollowing() {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return [];
+
+    const { data, error } = await sb
+      .from('user_follows')
+      .select('following_id, created_at, profiles!user_follows_following_id_fkey(name, photo_url, is_psi)')
+      .eq('follower_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) { console.error('getFollowing error:', error); return []; }
+    return (data || []).map(f => ({
+      following_id: f.following_id,
+      name: f.profiles?.name || 'Usuario',
+      photo_url: f.profiles?.photo_url || null,
+      is_psi: f.profiles?.is_psi || false,
+      followed_at: f.created_at,
+    }));
+  },
+
+  /**
+   * Load non-anonymous posts from a specific user.
+   * @param {string} userId
+   * @returns {Promise<object[]>}
+   */
+  async loadUserPosts(userId) {
+    const sb = window.supabaseClient;
+    const currentUser = (await sb.auth.getUser()).data.user;
+
+    const { data: posts, error } = await sb
+      .from('posts')
+      .select('*, profiles!posts_user_id_fkey(name, photo_url, gender, birth_year, is_psi), topics!posts_topic_id_fkey(name, emoji)')
+      .eq('user_id', userId)
+      .eq('is_anonymous', false)
+      .eq('status', 'visible')
+      .order('created_at', { ascending: false });
+
+    if (error) { console.error('loadUserPosts error:', error); return []; }
+
+    const postIds = posts.map(p => p.id);
+    if (postIds.length === 0) return [];
+
+    const { data: reactionCounts } = await sb
+      .from('reactions')
+      .select('post_id')
+      .in('post_id', postIds);
+
+    const countMap = {};
+    if (reactionCounts) {
+      reactionCounts.forEach(r => {
+        countMap[r.post_id] = (countMap[r.post_id] || 0) + 1;
+      });
+    }
+
+    let userReactions = {};
+    if (currentUser) {
+      const { data: userReacts } = await sb
+        .from('reactions')
+        .select('post_id')
+        .eq('user_id', currentUser.id)
+        .in('post_id', postIds);
+      if (userReacts) {
+        userReacts.forEach(r => { userReactions[r.post_id] = true; });
+      }
+    }
+
+    const { data: replyCounts } = await sb
+      .from('replies')
+      .select('post_id')
+      .in('post_id', postIds);
+
+    const replyCountMap = {};
+    if (replyCounts) {
+      replyCounts.forEach(r => {
+        replyCountMap[r.post_id] = (replyCountMap[r.post_id] || 0) + 1;
+      });
+    }
+
+    return posts.map(p => ({
+      ...p,
+      author: p.profiles,
+      reactionCount: countMap[p.id] || 0,
+      replyCount: replyCountMap[p.id] || 0,
+      userReacted: !!userReactions[p.id],
+    }));
+  },
+
   /**
    * Get all subscribers of a topic, optionally excluding a user.
    * @param {string} topicId
