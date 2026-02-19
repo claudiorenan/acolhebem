@@ -2973,15 +2973,13 @@ class AcolheBemApp {
         const brandY = cardY + cardH - pad;
         ctx.textAlign = 'center';
 
-        // CTA
-        ctx.font = `bold 24px ${FONT}`;
+        // Branding
+        ctx.font = `bold 26px ${FONT}`;
         ctx.fillStyle = '#1a4d44';
-        ctx.fillText('Junte-se a nos em AcolheBem.com.br', W / 2, brandY - 16);
-
-        // Sub-branding
-        ctx.font = `400 18px ${FONT}`;
+        ctx.fillText('AcolheBem.com.br', W / 2, brandY - 14);
+        ctx.font = `400 20px ${FONT}`;
         ctx.fillStyle = '#374151';
-        ctx.fillText('Plataforma de Acolhimento e Movimento', W / 2, brandY + 12);
+        ctx.fillText('Plataforma de Acolhimento e Movimento', W / 2, brandY + 16);
         ctx.textAlign = 'left';
     }
 
