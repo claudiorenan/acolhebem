@@ -34,7 +34,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=9">
+    <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
     <a class="skip-link" href="#feedList">Pular para o conteudo</a>
@@ -130,6 +130,13 @@
                         </svg>
                         <span class="tab-label-full">Membros</span>
                         <span class="tab-label-short">Membros</span>
+                    </button>
+                    <button class="tab-btn" data-tab="atividade" id="tabAtividade" role="tab" aria-selected="false" aria-label="Atividade Fisica">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+                        </svg>
+                        <span class="tab-label-full">Atividade</span>
+                        <span class="tab-label-short">Atv</span>
                     </button>
                 </nav>
                 <div class="topbar-right">
@@ -619,6 +626,104 @@
                 <div id="membrosList" class="membros-list"></div>
             </div>
 
+            <!-- ===== ATIVIDADE FISICA SECTION ===== -->
+            <div id="atividadeSection" class="atividade-section" style="display:none">
+                <div class="atividade-header">
+                    <h2 class="atividade-title">Atividade Fisica</h2>
+                    <p class="atividade-subtitle">Registre seu exercicio diario e acompanhe sua evolucao</p>
+                </div>
+
+                <!-- Streak Widget -->
+                <div class="atv-streak-widget" id="atvStreakWidget">
+                    <div class="atv-streak-main">
+                        <span class="atv-streak-emoji">🔥</span>
+                        <div class="atv-streak-info">
+                            <span class="atv-streak-count" id="atvStreakCount">0</span>
+                            <span class="atv-streak-label">dias seguidos</span>
+                        </div>
+                    </div>
+                    <div class="atv-streak-best">
+                        <span class="atv-streak-best-label">Melhor:</span>
+                        <span class="atv-streak-best-val" id="atvStreakBest">0</span>
+                    </div>
+                </div>
+
+                <!-- Check-in Card -->
+                <div class="atv-card">
+                    <h3 class="atv-card-title">Check-in de Hoje</h3>
+
+                    <!-- Gate: not logged in -->
+                    <div id="atividadeGate" style="display:none">
+                        <p class="atv-gate-text">Faca login para registrar sua atividade</p>
+                        <button class="gate-signup-btn" id="atvLoginBtn">Entrar ou cadastrar</button>
+                    </div>
+
+                    <!-- Already checked in today -->
+                    <div id="atividadeCheckedIn" class="atv-checked-in" style="display:none">
+                        <span class="atv-checked-icon">✅</span>
+                        <p class="atv-checked-text">Voce ja registrou sua atividade hoje!</p>
+                        <p class="atv-checked-detail" id="atvCheckedDetail"></p>
+                    </div>
+
+                    <!-- Check-in Form -->
+                    <div id="atividadeForm" style="display:none">
+                        <label class="atv-field-label">Tipo de atividade</label>
+                        <div class="atv-type-pills" id="atvTypePills"></div>
+
+                        <label class="atv-field-label" for="atvDuration">Duracao (minutos)</label>
+                        <input type="number" id="atvDuration" class="atv-input" min="1" max="600" placeholder="Ex: 30">
+
+                        <label class="atv-field-label" for="atvNote">Nota (opcional)</label>
+                        <textarea id="atvNote" class="atv-textarea" rows="2" maxlength="500" placeholder="Como foi o treino?"></textarea>
+
+                        <label class="atv-field-label" for="atvMotivation">Mensagem motivacional (opcional)</label>
+                        <textarea id="atvMotivation" class="atv-textarea" rows="2" maxlength="280" placeholder="Compartilhe uma frase de motivacao com a comunidade!"></textarea>
+
+                        <button class="atv-submit-btn" id="atvSubmitBtn">Registrar atividade</button>
+                    </div>
+                </div>
+
+                <!-- Stats Card -->
+                <div class="atv-card">
+                    <h3 class="atv-card-title">Estatisticas</h3>
+                    <div class="atv-period-tabs">
+                        <button class="atv-period-tab active" data-atv-period="week">Semana</button>
+                        <button class="atv-period-tab" data-atv-period="month">Mes</button>
+                        <button class="atv-period-tab" data-atv-period="year">Ano</button>
+                    </div>
+                    <div class="atv-stats-summary" id="atvStatsSummary">
+                        <div class="atv-stat-item">
+                            <span class="atv-stat-val" id="atvStatDays">0</span>
+                            <span class="atv-stat-label">dias ativos</span>
+                        </div>
+                        <div class="atv-stat-item">
+                            <span class="atv-stat-val" id="atvStatMinutes">0</span>
+                            <span class="atv-stat-label">minutos</span>
+                        </div>
+                    </div>
+                    <div class="atv-chart" id="atvChart"></div>
+                    <div class="atv-chart-empty" id="atvChartEmpty" style="display:none">
+                        <p>Nenhum dado ainda. Faca seu primeiro check-in!</p>
+                    </div>
+                </div>
+
+                <!-- Community Motivation Feed -->
+                <div class="atv-card">
+                    <h3 class="atv-card-title">Motivacao da Comunidade</h3>
+                    <div id="atvFeed" class="atv-feed"></div>
+                    <div id="atvFeedEmpty" class="atv-feed-empty" style="display:none">
+                        <p>Nenhuma mensagem motivacional ainda. Seja o primeiro!</p>
+                    </div>
+                </div>
+
+                <footer class="groups-footer">
+                    <div class="gf-inner">
+                        <p class="gf-brand">AcolheBem.com.br</p>
+                        <p class="gf-tagline">Plataforma de Acolhimento</p>
+                    </div>
+                </footer>
+            </div>
+
             <!-- ===== ADMIN PANEL (only for admin users) ===== -->
             <div id="adminSection" class="admin-section" style="display:none">
                 <div class="admin-header">
@@ -940,17 +1045,17 @@
     <!-- Sentry: uncomment with a valid DSN to enable error tracking
     <script src="https://browser.sentry-cdn.com/8.45.0/bundle.tracing.min.js" crossorigin="anonymous"></script>
     -->
-    <script src="js/error-handler.js?v=9"></script>
-    <script src="js/validation.js?v=9"></script>
-    <script src="js/data.js?v=9"></script>
-    <script src="js/supabase.js?v=9"></script>
-    <script src="js/profile.js?v=9"></script>
-    <script src="js/auth.js?v=9"></script>
-    <script src="js/feed.js?v=9"></script>
-    <script src="js/search.js?v=9"></script>
-    <script src="js/notifications.js?v=9"></script>
-    <script src="js/messages.js?v=9"></script>
-    <script src="js/app.js?v=9"></script>
+    <script src="js/error-handler.js?v=10"></script>
+    <script src="js/validation.js?v=10"></script>
+    <script src="js/data.js?v=10"></script>
+    <script src="js/supabase.js?v=10"></script>
+    <script src="js/profile.js?v=10"></script>
+    <script src="js/auth.js?v=10"></script>
+    <script src="js/feed.js?v=10"></script>
+    <script src="js/search.js?v=10"></script>
+    <script src="js/notifications.js?v=10"></script>
+    <script src="js/messages.js?v=10"></script>
+    <script src="js/app.js?v=10"></script>
 
     <!-- PWA Install Banner -->
     <div id="pwaInstallBanner" class="pwa-install-banner" style="display:none">

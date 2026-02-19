@@ -172,6 +172,20 @@ const ContentFilter = {
 };
 
 // ============================================================
+//  ACTIVITY TYPES
+// ============================================================
+const ACTIVITY_TYPES = [
+    { key: 'caminhada',  label: 'Caminhada',  emoji: '\u{1F6B6}' },
+    { key: 'corrida',    label: 'Corrida',    emoji: '\u{1F3C3}' },
+    { key: 'musculacao', label: 'Musculacao', emoji: '\u{1F3CB}\u{FE0F}' },
+    { key: 'yoga',       label: 'Yoga',       emoji: '\u{1F9D8}' },
+    { key: 'natacao',    label: 'Natacao',    emoji: '\u{1F3CA}' },
+    { key: 'danca',      label: 'Danca',      emoji: '\u{1F483}' },
+    { key: 'ciclismo',   label: 'Ciclismo',   emoji: '\u{1F6B4}' },
+    { key: 'outro',      label: 'Outro',      emoji: '\u{26A1}' },
+];
+
+// ============================================================
 //  MAIN APP
 // ============================================================
 class AcolheBemApp {
@@ -204,6 +218,12 @@ class AcolheBemApp {
         this._dmConversationId = null;
         this._dmOtherUser = null;
         this._dmEnabled = false;
+        this._atividadeData = null;
+        this._atividadePeriod = 'week';
+        this._atividadeFeedItems = [];
+        this._atividadeListenersSet = false;
+        this._atividadeSelectedType = null;
+        this._atividadeTodayCheckin = null;
         this.init();
     }
 
@@ -1813,19 +1833,28 @@ class AcolheBemApp {
         if (tab === 'community') {
             this.hidePsicologos();
             this.hideMembros();
+            this.hideAtividade();
             this.showCommunity();
         } else if (tab === 'psicologos') {
             this.hideCommunity();
             this.hideMembros();
+            this.hideAtividade();
             this.showPsicologos();
         } else if (tab === 'membros') {
             this.hideCommunity();
             this.hidePsicologos();
+            this.hideAtividade();
             this.showMembros();
+        } else if (tab === 'atividade') {
+            this.hideCommunity();
+            this.hidePsicologos();
+            this.hideMembros();
+            this.showAtividade();
         } else {
             this.hideCommunity();
             this.hidePsicologos();
             this.hideMembros();
+            this.hideAtividade();
             if (this.gender !== tab) {
                 this.gender = tab;
                 this.data = TOPICS_DATA[tab];
@@ -1841,6 +1870,7 @@ class AcolheBemApp {
     showCommunity() {
         this.$('mainBody').style.display = 'none';
         this.$('membrosSection').style.display = 'none';
+        this.$('atividadeSection').style.display = 'none';
         this.$('communitySection').style.display = '';
         this.applyTheme();
 
@@ -1863,6 +1893,7 @@ class AcolheBemApp {
         this.$('mainBody').style.display = 'none';
         this.$('communitySection').style.display = 'none';
         this.$('membrosSection').style.display = 'none';
+        this.$('atividadeSection').style.display = 'none';
         this.$('psicologosSection').style.display = '';
         this.applyTheme();
 
@@ -1882,6 +1913,7 @@ class AcolheBemApp {
         this.$('mainBody').style.display = 'none';
         this.$('communitySection').style.display = 'none';
         this.$('psicologosSection').style.display = 'none';
+        this.$('atividadeSection').style.display = 'none';
         this.$('membrosSection').style.display = '';
         this.applyTheme();
 
@@ -1915,6 +1947,439 @@ class AcolheBemApp {
 
     hideMembros() {
         this.$('membrosSection').style.display = 'none';
+    }
+
+    // ========================================
+    //  ATIVIDADE FISICA TAB
+    // ========================================
+    showAtividade() {
+        this.$('mainBody').style.display = 'none';
+        this.$('communitySection').style.display = 'none';
+        this.$('psicologosSection').style.display = 'none';
+        this.$('membrosSection').style.display = 'none';
+        this.$('atividadeSection').style.display = '';
+        this.applyTheme();
+        this._setupAtividadeListeners();
+        this._renderActivityTypePills();
+        this.loadAtividadeData();
+    }
+
+    hideAtividade() {
+        this.$('atividadeSection').style.display = 'none';
+    }
+
+    _setupAtividadeListeners() {
+        if (this._atividadeListenersSet) return;
+        this._atividadeListenersSet = true;
+
+        // Period tabs
+        this.$$('.atv-period-tab').forEach(btn => {
+            btn.addEventListener('click', () => {
+                this._atividadePeriod = btn.dataset.atvPeriod;
+                this.$$('.atv-period-tab').forEach(b => b.classList.toggle('active', b.dataset.atvPeriod === this._atividadePeriod));
+                this.loadAtividadeStats();
+            });
+        });
+
+        // Login button
+        this.$('atvLoginBtn').addEventListener('click', () => {
+            this.openOverlay('authModal');
+        });
+
+        // Submit button
+        this.$('atvSubmitBtn').addEventListener('click', () => this.handleCheckin());
+    }
+
+    _renderActivityTypePills() {
+        const container = this.$('atvTypePills');
+        if (container.children.length > 0) return;
+        ACTIVITY_TYPES.forEach(t => {
+            const pill = document.createElement('button');
+            pill.className = 'atv-type-pill';
+            pill.dataset.type = t.key;
+            pill.textContent = t.emoji + ' ' + t.label;
+            pill.addEventListener('click', () => {
+                this.$$('.atv-type-pill').forEach(p => p.classList.remove('selected'));
+                pill.classList.add('selected');
+                this._atividadeSelectedType = t.key;
+            });
+            container.appendChild(pill);
+        });
+    }
+
+    async loadAtividadeData() {
+        const sb = window.supabaseClient;
+        const user = this.currentUser;
+
+        // Always load community feed (even without login)
+        this.loadAtividadeCommunityFeed();
+
+        if (!user || !sb) {
+            this.$('atividadeGate').style.display = '';
+            this.$('atividadeCheckedIn').style.display = 'none';
+            this.$('atividadeForm').style.display = 'none';
+            this.$('atvChartEmpty').style.display = '';
+            this.$('atvChart').style.display = 'none';
+            return;
+        }
+
+        this.$('atividadeGate').style.display = 'none';
+
+        // Check if already checked in today
+        const today = new Date().toISOString().slice(0, 10);
+        try {
+            const { data: todayCheckin } = await sb
+                .from('activity_checkins')
+                .select('*')
+                .eq('user_id', user.id)
+                .eq('checkin_date', today)
+                .maybeSingle();
+
+            this._atividadeTodayCheckin = todayCheckin;
+
+            if (todayCheckin) {
+                const typeObj = ACTIVITY_TYPES.find(t => t.key === todayCheckin.activity_type);
+                this.$('atividadeCheckedIn').style.display = '';
+                this.$('atividadeForm').style.display = 'none';
+                this.$('atvCheckedDetail').textContent =
+                    (typeObj ? typeObj.emoji + ' ' : '') +
+                    (typeObj ? typeObj.label : todayCheckin.activity_type) +
+                    ' — ' + todayCheckin.duration_minutes + ' min';
+            } else {
+                this.$('atividadeCheckedIn').style.display = 'none';
+                this.$('atividadeForm').style.display = '';
+            }
+        } catch (err) {
+            console.error('Error checking today checkin:', err);
+            this.$('atividadeCheckedIn').style.display = 'none';
+            this.$('atividadeForm').style.display = '';
+        }
+
+        // Load stats
+        this.loadAtividadeStats();
+    }
+
+    async loadAtividadeStats() {
+        const sb = window.supabaseClient;
+        const user = this.currentUser;
+        if (!user || !sb) return;
+
+        const now = new Date();
+        let fromDate;
+        if (this._atividadePeriod === 'week') {
+            fromDate = new Date(now);
+            fromDate.setDate(fromDate.getDate() - 6);
+        } else if (this._atividadePeriod === 'month') {
+            fromDate = new Date(now);
+            fromDate.setDate(fromDate.getDate() - 29);
+        } else {
+            fromDate = new Date(now);
+            fromDate.setFullYear(fromDate.getFullYear() - 1);
+            fromDate.setDate(fromDate.getDate() + 1);
+        }
+
+        const fromStr = fromDate.toISOString().slice(0, 10);
+
+        try {
+            const { data: checkins } = await sb
+                .from('activity_checkins')
+                .select('checkin_date, duration_minutes, activity_type')
+                .eq('user_id', user.id)
+                .gte('checkin_date', fromStr)
+                .order('checkin_date', { ascending: true });
+
+            this._atividadeData = checkins || [];
+        } catch (err) {
+            console.error('Error loading activity stats:', err);
+            this._atividadeData = [];
+        }
+
+        // Calculate streak from ALL user checkins
+        try {
+            const { data: allCheckins } = await sb
+                .from('activity_checkins')
+                .select('checkin_date')
+                .eq('user_id', user.id)
+                .order('checkin_date', { ascending: false });
+
+            const streak = this._calculateStreak(allCheckins || []);
+            this.$('atvStreakCount').textContent = streak.current;
+            this.$('atvStreakBest').textContent = streak.best;
+        } catch (err) {
+            console.error('Error loading streak:', err);
+        }
+
+        this.renderAtividadeStats();
+    }
+
+    _calculateStreak(checkins) {
+        if (!checkins || checkins.length === 0) return { current: 0, best: 0 };
+
+        const dates = checkins.map(c => c.checkin_date).sort().reverse();
+        const uniqueDates = [...new Set(dates)];
+
+        // Current streak: count consecutive days from today backwards
+        const today = new Date().toISOString().slice(0, 10);
+        let current = 0;
+        let checkDate = new Date(today);
+
+        for (let i = 0; i < uniqueDates.length; i++) {
+            const expected = checkDate.toISOString().slice(0, 10);
+            if (uniqueDates[i] === expected) {
+                current++;
+                checkDate.setDate(checkDate.getDate() - 1);
+            } else if (i === 0 && uniqueDates[i] === new Date(checkDate.getTime() - 86400000).toISOString().slice(0, 10)) {
+                // Allow yesterday as start if no check-in today
+                checkDate.setDate(checkDate.getDate() - 1);
+                const yesterday = checkDate.toISOString().slice(0, 10);
+                if (uniqueDates[i] === yesterday) {
+                    current++;
+                    checkDate.setDate(checkDate.getDate() - 1);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        // Best streak: scan all dates
+        let best = 0;
+        let tempStreak = 1;
+        const sorted = [...uniqueDates].sort();
+        for (let i = 1; i < sorted.length; i++) {
+            const prev = new Date(sorted[i - 1]);
+            const curr = new Date(sorted[i]);
+            const diffDays = (curr - prev) / 86400000;
+            if (diffDays === 1) {
+                tempStreak++;
+            } else {
+                best = Math.max(best, tempStreak);
+                tempStreak = 1;
+            }
+        }
+        best = Math.max(best, tempStreak, current);
+
+        return { current, best };
+    }
+
+    renderAtividadeStats() {
+        const data = this._atividadeData || [];
+        const chartEl = this.$('atvChart');
+        const emptyEl = this.$('atvChartEmpty');
+
+        // Summary
+        const totalDays = data.length;
+        const totalMinutes = data.reduce((s, c) => s + c.duration_minutes, 0);
+        this.$('atvStatDays').textContent = totalDays;
+        this.$('atvStatMinutes').textContent = totalMinutes;
+
+        if (data.length === 0) {
+            chartEl.style.display = 'none';
+            emptyEl.style.display = '';
+            return;
+        }
+
+        chartEl.style.display = '';
+        emptyEl.style.display = 'none';
+
+        let bars = [];
+        const now = new Date();
+
+        if (this._atividadePeriod === 'week') {
+            // 7 individual days
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(now);
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toISOString().slice(0, 10);
+                const match = data.find(c => c.checkin_date === dateStr);
+                bars.push({
+                    label: d.toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3),
+                    value: match ? match.duration_minutes : 0,
+                });
+            }
+        } else if (this._atividadePeriod === 'month') {
+            // Group by week (4-5 bars)
+            const weeks = {};
+            data.forEach(c => {
+                const d = new Date(c.checkin_date);
+                const weekStart = new Date(d);
+                weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+                const key = weekStart.toISOString().slice(0, 10);
+                if (!weeks[key]) weeks[key] = 0;
+                weeks[key] += c.duration_minutes;
+            });
+            const sortedKeys = Object.keys(weeks).sort();
+            sortedKeys.forEach((key, i) => {
+                const d = new Date(key);
+                bars.push({
+                    label: 'S' + (i + 1),
+                    value: weeks[key],
+                });
+            });
+            if (bars.length === 0) bars.push({ label: 'S1', value: 0 });
+        } else {
+            // Year: group by month
+            const months = {};
+            data.forEach(c => {
+                const key = c.checkin_date.slice(0, 7);
+                if (!months[key]) months[key] = 0;
+                months[key] += c.duration_minutes;
+            });
+            const sortedKeys = Object.keys(months).sort();
+            sortedKeys.forEach(key => {
+                const d = new Date(key + '-01');
+                bars.push({
+                    label: d.toLocaleDateString('pt-BR', { month: 'short' }).slice(0, 3),
+                    value: months[key],
+                });
+            });
+            if (bars.length === 0) bars.push({ label: '-', value: 0 });
+        }
+
+        const maxVal = Math.max(...bars.map(b => b.value), 1);
+
+        chartEl.innerHTML = bars.map(b => {
+            const pct = Math.round((b.value / maxVal) * 100);
+            return `<div class="atv-bar-col">
+                <div class="atv-bar-val">${b.value > 0 ? b.value : ''}</div>
+                <div class="atv-bar-track">
+                    <div class="atv-bar-fill" style="height:${pct}%"></div>
+                </div>
+                <div class="atv-bar-label">${b.label}</div>
+            </div>`;
+        }).join('');
+    }
+
+    async handleCheckin() {
+        const sb = window.supabaseClient;
+        const user = this.currentUser;
+        if (!user || !sb) return;
+
+        const type = this._atividadeSelectedType;
+        const duration = parseInt(this.$('atvDuration').value, 10);
+        const note = this.$('atvNote').value.trim() || null;
+        const motivation = this.$('atvMotivation').value.trim() || null;
+
+        if (!type) {
+            ErrorHandler.showToast('Selecione o tipo de atividade', 'warning');
+            return;
+        }
+        if (!duration || duration < 1 || duration > 600) {
+            ErrorHandler.showToast('Informe a duracao (1-600 min)', 'warning');
+            return;
+        }
+
+        const btn = this.$('atvSubmitBtn');
+        btn.disabled = true;
+        btn.textContent = 'Registrando...';
+
+        try {
+            const { error } = await sb.from('activity_checkins').insert({
+                user_id: user.id,
+                activity_type: type,
+                duration_minutes: duration,
+                note: note,
+                motivation_message: motivation,
+                checkin_date: new Date().toISOString().slice(0, 10),
+            });
+
+            if (error) {
+                if (error.code === '23505') {
+                    ErrorHandler.showToast('Voce ja fez check-in hoje!', 'warning');
+                } else {
+                    throw error;
+                }
+            } else {
+                ErrorHandler.showToast('Atividade registrada!', 'success');
+            }
+
+            // Reset form
+            this._atividadeSelectedType = null;
+            this.$$('.atv-type-pill').forEach(p => p.classList.remove('selected'));
+            this.$('atvDuration').value = '';
+            this.$('atvNote').value = '';
+            this.$('atvMotivation').value = '';
+
+            // Reload data
+            await this.loadAtividadeData();
+        } catch (err) {
+            console.error('Checkin error:', err);
+            ErrorHandler.showToast('Erro ao registrar atividade', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Registrar atividade';
+        }
+    }
+
+    async loadAtividadeCommunityFeed() {
+        const sb = window.supabaseClient;
+        if (!sb) {
+            this.$('atvFeedEmpty').style.display = '';
+            return;
+        }
+
+        try {
+            const { data: items } = await sb
+                .from('activity_checkins')
+                .select('id, activity_type, duration_minutes, motivation_message, created_at, user_id')
+                .not('motivation_message', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (!items || items.length === 0) {
+                this.$('atvFeedEmpty').style.display = '';
+                this.$('atvFeed').innerHTML = '';
+                return;
+            }
+
+            // Load profile names for feed items
+            const userIds = [...new Set(items.map(i => i.user_id))];
+            const { data: profiles } = await sb
+                .from('profiles')
+                .select('id, name, avatar_url')
+                .in('id', userIds);
+
+            const profileMap = {};
+            (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+            this.$('atvFeedEmpty').style.display = 'none';
+            this.renderMotivationFeed(items, profileMap);
+        } catch (err) {
+            console.error('Error loading activity feed:', err);
+            this.$('atvFeedEmpty').style.display = '';
+        }
+    }
+
+    renderMotivationFeed(items, profileMap) {
+        const feedEl = this.$('atvFeed');
+        feedEl.innerHTML = items.map(item => {
+            const profile = profileMap[item.user_id] || {};
+            const name = profile.name || 'Anonimo';
+            const initial = name.charAt(0).toUpperCase();
+            const typeObj = ACTIVITY_TYPES.find(t => t.key === item.activity_type);
+            const badge = (typeObj ? typeObj.emoji : '') + ' ' + item.duration_minutes + ' min';
+            const avatarHtml = profile.avatar_url
+                ? `<img src="${profile.avatar_url}" alt="${name}">`
+                : initial;
+            const timeAgo = this._dmTimeAgo(item.created_at);
+
+            return `<div class="atv-feed-item">
+                <div class="atv-feed-avatar">${avatarHtml}</div>
+                <div class="atv-feed-body">
+                    <span class="atv-feed-name">${this._escapeHtml(name)}</span>
+                    <span class="atv-feed-badge">${badge}</span>
+                    <p class="atv-feed-msg">${this._escapeHtml(item.motivation_message)}</p>
+                    <span class="atv-feed-time">${timeAgo}</span>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    _escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 
     async loadMembrosData() {
@@ -3747,6 +4212,7 @@ class AcolheBemApp {
         this.$('mainBody').style.display = 'none';
         this.$('communitySection').style.display = 'none';
         this.$('psicologosSection').style.display = 'none';
+        this.$('atividadeSection').style.display = 'none';
         this.$('adminSection').style.display = '';
         this._adminPostsOffset = 0;
         this.loadAdminDashboard();
@@ -3760,6 +4226,8 @@ class AcolheBemApp {
             this.showPsicologos();
         } else if (this._previousView === 'membros') {
             this.showMembros();
+        } else if (this._previousView === 'atividade') {
+            this.showAtividade();
         } else {
             this.$('mainBody').style.display = '';
         }

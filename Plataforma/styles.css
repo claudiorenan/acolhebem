@@ -706,7 +706,7 @@ select:focus:not(:focus-visible){outline:none}
     .groups-footer{display:none}
 
     /* Community and Psicologos sections need to scroll inside the locked viewport */
-    .community-section,.psicologos-section,.membros-section{
+    .community-section,.psicologos-section,.membros-section,.atividade-section{
         flex:1;overflow-y:auto;max-height:calc(100vh - 60px);max-height:calc(100dvh - 60px);
     }
 }
@@ -2776,7 +2776,7 @@ select:focus:not(:focus-visible){outline:none}
 /* === SAFE AREA (iPhone notch/home bar) === */
 @supports(padding: env(safe-area-inset-bottom)){
     .topbar{padding-top:env(safe-area-inset-top)}
-    .community-section,.psicologos-section,.membros-section{padding-bottom:env(safe-area-inset-bottom)}
+    .community-section,.psicologos-section,.membros-section,.atividade-section{padding-bottom:env(safe-area-inset-bottom)}
     .modal-overlay{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 }
 
@@ -3468,6 +3468,210 @@ select:focus:not(:focus-visible){outline:none}
 @media(max-width:600px){
     .membros-section{padding:12px 10px 32px}
     .membro-card{padding:10px 12px;gap:10px}
+}
+
+/* ============================================================
+   ATIVIDADE FISICA SECTION
+   ============================================================ */
+.atividade-section{
+    max-width:600px;width:100%;margin:0 auto;
+    padding:24px 16px 48px;overflow-y:auto;
+}
+.atividade-header{margin-bottom:20px}
+.atividade-title{
+    font-family:var(--f-display);
+    font-size:1.1rem;font-weight:700;color:var(--ink);margin-bottom:4px;
+}
+.atividade-subtitle{font-size:.82rem;color:var(--ink-40)}
+.tab-btn[data-tab="atividade"].active{color:var(--emerald)}
+
+/* Streak Widget */
+.atv-streak-widget{
+    display:flex;align-items:center;justify-content:space-between;
+    background:linear-gradient(135deg,var(--emerald-l),var(--white));
+    border:1px solid var(--ink-10);border-radius:var(--r-md);
+    padding:16px 20px;margin-bottom:16px;
+}
+.atv-streak-main{display:flex;align-items:center;gap:12px}
+.atv-streak-emoji{font-size:2rem}
+.atv-streak-info{display:flex;flex-direction:column}
+.atv-streak-count{font-size:1.6rem;font-weight:800;color:var(--emerald);line-height:1}
+.atv-streak-label{font-size:.75rem;color:var(--ink-40);margin-top:2px}
+.atv-streak-best{
+    display:flex;flex-direction:column;align-items:flex-end;
+    font-size:.78rem;color:var(--ink-40);
+}
+.atv-streak-best-val{font-weight:700;color:var(--ink-70);font-size:.95rem}
+
+/* Cards */
+.atv-card{
+    background:var(--white);border:1px solid var(--ink-10);
+    border-radius:var(--r-md);padding:20px;margin-bottom:16px;
+}
+.atv-card-title{
+    font-family:var(--f-display);font-size:.95rem;font-weight:700;
+    color:var(--ink);margin-bottom:14px;
+}
+
+/* Gate */
+.atv-gate-text{font-size:.85rem;color:var(--ink-40);margin-bottom:12px}
+
+/* Checked-in State */
+.atv-checked-in{text-align:center;padding:16px 0}
+.atv-checked-icon{font-size:2rem;display:block;margin-bottom:8px}
+.atv-checked-text{font-size:.9rem;font-weight:600;color:var(--emerald);margin-bottom:4px}
+.atv-checked-detail{font-size:.8rem;color:var(--ink-40)}
+
+/* Type Pills */
+.atv-field-label{
+    display:block;font-size:.8rem;font-weight:600;
+    color:var(--ink-70);margin-bottom:8px;margin-top:14px;
+}
+.atv-field-label:first-child{margin-top:0}
+.atv-type-pills{display:flex;flex-wrap:wrap;gap:8px}
+.atv-type-pill{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:8px 14px;border-radius:100px;
+    border:1.5px solid var(--ink-10);background:var(--white);
+    font-size:.82rem;cursor:pointer;font-family:var(--f-body);
+    transition:all var(--dur-fast);color:var(--ink-70);
+}
+.atv-type-pill:hover{border-color:var(--emerald);color:var(--emerald)}
+.atv-type-pill.selected{
+    background:var(--emerald);color:white;border-color:var(--emerald);
+}
+
+/* Form Inputs */
+.atv-input{
+    width:100%;padding:10px 14px;border-radius:8px;
+    border:1px solid var(--ink-10);font-size:.85rem;
+    font-family:var(--f-body);background:var(--white);
+    outline:none;transition:border-color var(--dur-fast);
+}
+.atv-input:focus{border-color:var(--emerald)}
+.atv-textarea{
+    width:100%;padding:10px 14px;border-radius:8px;
+    border:1px solid var(--ink-10);font-size:.85rem;
+    font-family:var(--f-body);background:var(--white);
+    outline:none;transition:border-color var(--dur-fast);
+    resize:vertical;
+}
+.atv-textarea:focus{border-color:var(--emerald)}
+
+/* Submit Button */
+.atv-submit-btn{
+    width:100%;padding:12px;margin-top:18px;
+    border-radius:8px;border:none;
+    background:var(--emerald);color:white;
+    font-size:.9rem;font-weight:600;font-family:var(--f-body);
+    cursor:pointer;transition:all var(--dur-fast);
+}
+.atv-submit-btn:hover{background:var(--emerald-d)}
+.atv-submit-btn:disabled{opacity:.5;cursor:default}
+
+/* Period Tabs */
+.atv-period-tabs{display:flex;gap:8px;margin-bottom:14px}
+.atv-period-tab{
+    padding:6px 14px;border-radius:20px;
+    border:1px solid var(--ink-10);background:var(--white);
+    font-size:.82rem;cursor:pointer;font-family:var(--f-body);
+    transition:all var(--dur-fast);
+}
+.atv-period-tab:hover{border-color:var(--emerald);color:var(--emerald)}
+.atv-period-tab.active{background:var(--emerald);color:white;border-color:var(--emerald)}
+
+/* Stats Summary */
+.atv-stats-summary{
+    display:flex;gap:24px;margin-bottom:16px;
+}
+.atv-stat-item{display:flex;flex-direction:column;align-items:center}
+.atv-stat-val{font-size:1.4rem;font-weight:800;color:var(--emerald);line-height:1}
+.atv-stat-label{font-size:.72rem;color:var(--ink-40);margin-top:2px}
+
+/* Bar Chart */
+.atv-chart{
+    display:flex;align-items:flex-end;gap:6px;
+    height:120px;padding-top:8px;
+}
+.atv-bar-col{
+    flex:1;display:flex;flex-direction:column;
+    align-items:center;gap:4px;height:100%;
+}
+.atv-bar-track{
+    flex:1;width:100%;border-radius:4px;
+    background:var(--ink-05);position:relative;
+    min-height:0;
+}
+.atv-bar-fill{
+    position:absolute;bottom:0;left:0;right:0;
+    border-radius:4px;background:var(--emerald);
+    transition:height .3s var(--ease-out);
+}
+.atv-bar-label{
+    font-size:.6rem;color:var(--ink-40);
+    white-space:nowrap;
+}
+.atv-bar-val{
+    font-size:.6rem;color:var(--ink-70);font-weight:600;
+}
+.atv-chart-empty{
+    text-align:center;padding:24px 0;
+    font-size:.82rem;color:var(--ink-40);
+}
+
+/* Community Feed */
+.atv-feed{display:flex;flex-direction:column;gap:12px}
+.atv-feed-item{
+    display:flex;gap:10px;padding:10px 0;
+    border-bottom:1px solid var(--ink-05);
+}
+.atv-feed-item:last-child{border-bottom:none}
+.atv-feed-avatar{
+    width:36px;height:36px;border-radius:50%;
+    flex-shrink:0;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--ink-10);color:var(--ink-70);
+    font-weight:600;font-size:.8rem;
+}
+.atv-feed-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.atv-feed-body{flex:1;min-width:0}
+.atv-feed-name{font-size:.82rem;font-weight:600;color:var(--ink)}
+.atv-feed-badge{
+    display:inline-block;font-size:.68rem;
+    background:var(--emerald-l);color:var(--emerald);
+    padding:2px 8px;border-radius:10px;
+    margin-left:6px;font-weight:600;
+}
+.atv-feed-msg{
+    font-size:.82rem;color:var(--ink-70);
+    margin-top:4px;line-height:1.4;
+}
+.atv-feed-time{font-size:.68rem;color:var(--ink-40);margin-top:4px}
+.atv-feed-empty{
+    text-align:center;padding:20px 0;
+    font-size:.82rem;color:var(--ink-40);
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] .atv-streak-widget{
+    background:linear-gradient(135deg,rgba(47,111,100,.12),var(--white));
+}
+[data-theme="dark"] .atv-card{background:var(--white);border-color:var(--ink-10)}
+[data-theme="dark"] .atv-type-pill{background:var(--ink-05);border-color:var(--ink-10)}
+[data-theme="dark"] .atv-type-pill.selected{background:var(--emerald);border-color:var(--emerald)}
+[data-theme="dark"] .atv-input,[data-theme="dark"] .atv-textarea{
+    background:var(--ink-05);border-color:var(--ink-10);color:var(--ink);
+}
+
+/* Mobile */
+@media(max-width:600px){
+    .atividade-section{padding:12px 10px 32px}
+    .atv-streak-widget{padding:12px 14px}
+    .atv-streak-emoji{font-size:1.5rem}
+    .atv-streak-count{font-size:1.3rem}
+    .atv-card{padding:14px}
+    .atv-chart{height:90px;gap:4px}
+    .atv-bar-label{font-size:.55rem}
 }
 
 @media(max-width:600px){
