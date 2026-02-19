@@ -120,6 +120,16 @@
                         <span class="tab-label-full">Psicologos</span>
                         <span class="tab-label-short">Psi</span>
                     </button>
+                    <button class="tab-btn" data-tab="membros" id="tabMembros">
+                        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        <span class="tab-label-full">Membros</span>
+                        <span class="tab-label-short">Membros</span>
+                    </button>
                 </nav>
                 <div class="topbar-right">
                     <!-- Search toggle -->
@@ -578,6 +588,23 @@
                     <p class="gf-brand">AcolheBem.com.br</p>
                     <p class="gf-tagline">Plataforma de Acolhimento</p>
                 </div>
+            </div>
+
+            <!-- ===== MEMBROS SECTION (toggled by tab) ===== -->
+            <div id="membrosSection" class="membros-section" style="display:none">
+                <div class="membros-header">
+                    <h2 class="membros-title">Membros da Comunidade</h2>
+                    <input type="text" id="membrosSearch" placeholder="Buscar por nome..." class="membros-search">
+                </div>
+                <div class="membros-tabs">
+                    <button class="membros-tab active" data-membros-tab="psi">Psicologos</button>
+                    <button class="membros-tab" data-membros-tab="membros">Membros</button>
+                </div>
+                <div id="membrosLoading" class="psi-state psi-loading" style="display:none">
+                    <div class="psi-spinner"></div>
+                    <p>Carregando membros...</p>
+                </div>
+                <div id="membrosList" class="membros-list"></div>
             </div>
 
             <!-- ===== ADMIN PANEL (only for admin users) ===== -->

@@ -665,7 +665,7 @@ img,svg{display:block}
     .groups-footer{display:none}
 
     /* Community and Psicologos sections need to scroll inside the locked viewport */
-    .community-section,.psicologos-section{
+    .community-section,.psicologos-section,.membros-section{
         flex:1;overflow-y:auto;max-height:calc(100vh - 60px);max-height:calc(100dvh - 60px);
     }
 }
@@ -2616,7 +2616,7 @@ img,svg{display:block}
 /* === SAFE AREA (iPhone notch/home bar) === */
 @supports(padding: env(safe-area-inset-bottom)){
     .topbar{padding-top:env(safe-area-inset-top)}
-    .community-section,.psicologos-section{padding-bottom:env(safe-area-inset-bottom)}
+    .community-section,.psicologos-section,.membros-section{padding-bottom:env(safe-area-inset-bottom)}
     .modal-overlay{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 }
 
@@ -3222,6 +3222,88 @@ img,svg{display:block}
     cursor:pointer;padding:2px 6px;margin-left:auto;
 }
 .feed-post-report:hover{color:#e53935}
+
+/* ============================================================
+   MEMBROS SECTION — Members listing tab
+   ============================================================ */
+.membros-section{
+    max-width:600px;width:100%;margin:0 auto;
+    padding:24px 16px 48px;overflow-y:auto;
+}
+.membros-header{margin-bottom:16px}
+.membros-title{
+    font-family:var(--f-display);
+    font-size:1.1rem;font-weight:700;color:var(--ink);margin-bottom:12px;
+}
+.membros-search{
+    width:100%;padding:10px 14px;border-radius:8px;
+    border:1px solid var(--ink-10);font-size:.85rem;
+    font-family:var(--f-body);background:var(--white);
+    outline:none;transition:border-color var(--dur-fast);
+}
+.membros-search:focus{border-color:var(--emerald)}
+.membros-tabs{display:flex;gap:8px;margin-bottom:16px}
+.membros-tab{
+    padding:8px 16px;border-radius:20px;
+    border:1px solid var(--ink-10);background:var(--white);
+    font-size:.85rem;cursor:pointer;font-family:var(--f-body);
+    transition:all var(--dur-fast);
+}
+.membros-tab:hover{border-color:var(--emerald);color:var(--emerald)}
+.membros-tab.active{background:var(--emerald);color:white;border-color:var(--emerald)}
+.membros-list{display:flex;flex-direction:column;gap:8px}
+.membro-card{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 16px;background:var(--white);
+    border-radius:8px;border:1px solid var(--ink-10);
+    transition:box-shadow var(--dur-fast);
+}
+.membro-card:hover{box-shadow:var(--shadow-2)}
+.membro-avatar{
+    width:44px;height:44px;border-radius:50%;
+    object-fit:cover;flex-shrink:0;overflow:hidden;
+}
+.membro-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.membro-avatar-initial{
+    width:44px;height:44px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--ink-10);color:var(--ink-70);
+    font-weight:600;font-size:1rem;flex-shrink:0;
+}
+.membro-info{flex:1;min-width:0}
+.membro-name{font-size:.9rem;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.membro-name .psi-badge{
+    display:inline-block;font-size:.65rem;background:var(--emerald);
+    color:white;padding:1px 6px;border-radius:4px;
+    margin-left:6px;vertical-align:middle;font-weight:600;
+}
+.membro-meta{font-size:.75rem;color:var(--ink-40);display:block}
+.membro-no-follow{
+    font-size:.7rem;color:var(--ink-40);text-align:center;
+    max-width:90px;line-height:1.2;flex-shrink:0;
+}
+.membro-follow-btn{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:6px 14px;border-radius:20px;
+    border:1.5px solid var(--emerald);background:transparent;
+    color:var(--emerald);font-size:.78rem;font-weight:600;
+    cursor:pointer;transition:all var(--dur-fast);
+    white-space:nowrap;flex-shrink:0;font-family:var(--f-body);
+}
+.membro-follow-btn:hover{background:var(--emerald-l)}
+.membro-follow-btn.following{
+    background:var(--emerald);color:white;border-color:var(--emerald);
+}
+.membro-follow-btn.following:hover{
+    background:#c0392b;border-color:#c0392b;
+}
+.membro-follow-btn:disabled{opacity:.5;cursor:default}
+.tab-btn[data-tab="membros"].active{color:var(--emerald)}
+
+@media(max-width:600px){
+    .membros-section{padding:12px 10px 32px}
+    .membro-card{padding:10px 12px;gap:10px}
+}
 
 @media(max-width:600px){
     .admin-stats-grid{grid-template-columns:repeat(2,1fr)}

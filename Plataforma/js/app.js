@@ -181,6 +181,11 @@ class AcolheBemApp {
         this._currentCategoryData = null;
         this._backToTab = null;
         this.psiAvailableFetched = false;
+        this._membrosData = null;
+        this._membrosPostCounts = {};
+        this._membrosFilter = 'psi';
+        this._membrosSearchTerm = '';
+        this._membrosSearchTimer = null;
         this._followingSet = new Set();
         this._followingData = [];
         this._feedSource = 'all'; // 'all' or 'following'
@@ -1514,13 +1519,20 @@ class AcolheBemApp {
 
         if (tab === 'community') {
             this.hidePsicologos();
+            this.hideMembros();
             this.showCommunity();
         } else if (tab === 'psicologos') {
             this.hideCommunity();
+            this.hideMembros();
             this.showPsicologos();
+        } else if (tab === 'membros') {
+            this.hideCommunity();
+            this.hidePsicologos();
+            this.showMembros();
         } else {
             this.hideCommunity();
             this.hidePsicologos();
+            this.hideMembros();
             if (this.gender !== tab) {
                 this.gender = tab;
                 this.data = TOPICS_DATA[tab];
@@ -1535,6 +1547,7 @@ class AcolheBemApp {
 
     showCommunity() {
         this.$('mainBody').style.display = 'none';
+        this.$('membrosSection').style.display = 'none';
         this.$('communitySection').style.display = '';
         this.applyTheme();
 
@@ -1556,6 +1569,7 @@ class AcolheBemApp {
     showPsicologos() {
         this.$('mainBody').style.display = 'none';
         this.$('communitySection').style.display = 'none';
+        this.$('membrosSection').style.display = 'none';
         this.$('psicologosSection').style.display = '';
         this.applyTheme();
 
@@ -1566,6 +1580,192 @@ class AcolheBemApp {
 
     hidePsicologos() {
         this.$('psicologosSection').style.display = 'none';
+    }
+
+    // ========================================
+    //  MEMBROS TAB
+    // ========================================
+    showMembros() {
+        this.$('mainBody').style.display = 'none';
+        this.$('communitySection').style.display = 'none';
+        this.$('psicologosSection').style.display = 'none';
+        this.$('membrosSection').style.display = '';
+        this.applyTheme();
+
+        if (!this._membrosData) {
+            this.loadMembrosData();
+        }
+
+        // Setup event listeners once
+        if (!this._membrosListenersSet) {
+            this._membrosListenersSet = true;
+
+            // Sub-tab switching
+            this.$$('.membros-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    this._membrosFilter = btn.dataset.membrosTab;
+                    this.$$('.membros-tab').forEach(b => b.classList.toggle('active', b.dataset.membrosTab === this._membrosFilter));
+                    this.renderMembros();
+                });
+            });
+
+            // Search with debounce
+            this.$('membrosSearch').addEventListener('input', (e) => {
+                clearTimeout(this._membrosSearchTimer);
+                this._membrosSearchTimer = setTimeout(() => {
+                    this._membrosSearchTerm = e.target.value.trim().toLowerCase();
+                    this.renderMembros();
+                }, 300);
+            });
+        }
+    }
+
+    hideMembros() {
+        this.$('membrosSection').style.display = 'none';
+    }
+
+    async loadMembrosData() {
+        const loadingEl = this.$('membrosLoading');
+        const listEl = this.$('membrosList');
+        loadingEl.style.display = '';
+        listEl.innerHTML = '';
+
+        try {
+            const sb = window.supabaseClient;
+
+            // Load all profiles
+            const { data: profiles, error: profilesErr } = await sb
+                .from('profiles')
+                .select('id, name, photo_url, is_psi, city, state, crp');
+
+            if (profilesErr) throw profilesErr;
+
+            // Load post counts per user (visible posts only)
+            const { data: posts, error: postsErr } = await sb
+                .from('posts')
+                .select('user_id')
+                .eq('status', 'visible');
+
+            if (postsErr) throw postsErr;
+
+            // Build post count map
+            const countMap = {};
+            if (posts) {
+                posts.forEach(p => {
+                    countMap[p.user_id] = (countMap[p.user_id] || 0) + 1;
+                });
+            }
+
+            this._membrosData = profiles || [];
+            this._membrosPostCounts = countMap;
+
+            loadingEl.style.display = 'none';
+            this.renderMembros();
+        } catch (err) {
+            console.error('Error loading membros:', err);
+            loadingEl.style.display = 'none';
+            listEl.innerHTML = '<div class="psi-state"><span class="psi-state-icon">⚠️</span><p>Nao foi possivel carregar os membros.</p></div>';
+        }
+    }
+
+    renderMembros() {
+        const listEl = this.$('membrosList');
+        if (!this._membrosData) return;
+
+        const currentUserId = this.currentUser?.id;
+        const filter = this._membrosFilter;
+        const search = this._membrosSearchTerm;
+
+        let filtered = this._membrosData.filter(m => {
+            // Exclude self
+            if (currentUserId && m.id === currentUserId) return false;
+            // Filter by type
+            if (filter === 'psi' && !m.is_psi) return false;
+            if (filter === 'membros' && m.is_psi) return false;
+            // Search
+            if (search && m.name && !m.name.toLowerCase().includes(search)) return false;
+            if (search && !m.name) return false;
+            return true;
+        });
+
+        // Sort: members with posts first, then alphabetically
+        filtered.sort((a, b) => {
+            const aCount = this._membrosPostCounts[a.id] || 0;
+            const bCount = this._membrosPostCounts[b.id] || 0;
+            if (bCount !== aCount) return bCount - aCount;
+            return (a.name || '').localeCompare(b.name || '');
+        });
+
+        if (filtered.length === 0) {
+            listEl.innerHTML = '<div class="psi-state"><p>Nenhum membro encontrado.</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = filtered.map(m => {
+            const postCount = this._membrosPostCounts[m.id] || 0;
+            const hasPosts = postCount > 0;
+            const isFollowing = this._followingSet.has(m.id);
+            const location = [m.city, m.state].filter(Boolean).join(', ');
+
+            // Avatar
+            let avatarHTML;
+            if (m.photo_url) {
+                avatarHTML = `<div class="membro-avatar"><img src="${m.photo_url}" alt="${this.escapeHTML(m.name || '')}" loading="lazy"></div>`;
+            } else {
+                const initial = (m.name || '?').charAt(0).toUpperCase();
+                avatarHTML = `<div class="membro-avatar-initial">${initial}</div>`;
+            }
+
+            // Name + badge
+            const psiBadge = m.is_psi ? '<span class="psi-badge">Psi.</span>' : '';
+            const nameHTML = `<span class="membro-name">${this.escapeHTML(m.name || 'Anonimo')}${psiBadge}</span>`;
+
+            // Location
+            const metaHTML = location ? `<span class="membro-meta">${this.escapeHTML(location)}</span>` : '';
+
+            // Follow button or "sem publicacoes"
+            let actionHTML;
+            if (!this.currentUser) {
+                actionHTML = '';
+            } else if (hasPosts) {
+                actionHTML = `<button class="membro-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${m.id}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`;
+            } else {
+                actionHTML = '<span class="membro-no-follow">Sem publicacoes</span>';
+            }
+
+            return `<div class="membro-card">${avatarHTML}<div class="membro-info">${nameHTML}${metaHTML}</div>${actionHTML}</div>`;
+        }).join('');
+
+        // Attach follow/unfollow handlers
+        listEl.querySelectorAll('.membro-follow-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                btn.disabled = true;
+                const targetUserId = btn.dataset.userId;
+                const isCurrentlyFollowing = btn.classList.contains('following');
+
+                if (isCurrentlyFollowing) {
+                    const { error } = await Feed.unfollowUser(targetUserId);
+                    if (!error) {
+                        this._followingSet.delete(targetUserId);
+                        btn.classList.remove('following');
+                        btn.textContent = 'Seguir';
+                    }
+                } else {
+                    const { error } = await Feed.followUser(targetUserId);
+                    if (!error) {
+                        this._followingSet.add(targetUserId);
+                        btn.classList.add('following');
+                        btn.textContent = 'Seguindo';
+                        const actorName = this.currentProfile?.name || 'Alguem';
+                        Notifications.notifyFollow(targetUserId, actorName);
+                        this._updateOnboarding('followed_someone');
+                        this._awardBadge('first_follow');
+                    }
+                }
+                btn.disabled = false;
+            });
+        });
     }
 
     async loadPsiAvailable() {
@@ -3059,6 +3259,8 @@ class AcolheBemApp {
             this.showCommunity();
         } else if (this._previousView === 'psicologos') {
             this.showPsicologos();
+        } else if (this._previousView === 'membros') {
+            this.showMembros();
         } else {
             this.$('mainBody').style.display = '';
         }
