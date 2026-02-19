@@ -3689,6 +3689,99 @@ select:focus:not(:focus-visible){outline:none}
     font-size:.82rem;color:var(--ink-40);
 }
 
+/* Enhanced Feed: Header row (name + city) */
+.atv-feed-header-row{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.atv-feed-city{font-size:.72rem;color:var(--ink-40);font-weight:400}
+.atv-feed-city::before{content:'·';margin-right:4px}
+
+/* Enhanced Feed: Activity type row */
+.atv-feed-activity-row{display:flex;align-items:center;gap:6px;margin-top:2px}
+.atv-feed-type{font-size:.72rem;font-weight:600;color:var(--emerald);text-transform:uppercase;letter-spacing:.02em}
+
+/* Enhanced Feed: Branding */
+.atv-feed-brand{
+    font-size:.62rem;color:var(--ink-20);margin-top:6px;
+    font-weight:500;letter-spacing:.01em;
+}
+
+/* Enhanced Feed: Actions bar */
+.atv-feed-actions{
+    display:flex;align-items:center;gap:12px;
+    margin-top:8px;padding-top:8px;
+    border-top:1px solid var(--ink-05);
+}
+.atv-feed-actions .feed-action-btn{
+    display:flex;align-items:center;gap:4px;
+    background:none;border:none;cursor:pointer;
+    font-size:.78rem;color:var(--ink-40);
+    padding:4px 8px;border-radius:100px;
+    transition:all var(--dur-fast);
+    min-height:32px;min-width:32px;
+    justify-content:center;
+}
+.atv-feed-actions .feed-action-btn:hover{background:var(--ink-05);color:var(--ink-70)}
+.atv-feed-actions .feed-action-btn svg{width:16px;height:16px}
+.atv-feed-actions .feed-action-btn.liked{color:var(--emerald)}
+.atv-feed-actions .feed-action-btn.liked svg{fill:var(--emerald);stroke:var(--emerald)}
+
+/* Enhanced Feed: Reaction wrap */
+.atv-reaction-wrap{position:relative;display:inline-flex}
+.atv-reaction-wrap .reaction-icon{display:inline-flex;align-items:center;font-size:1rem;line-height:1}
+.atv-reaction-picker{
+    display:none;position:absolute;bottom:100%;left:0;
+    background:white;border-radius:24px;padding:6px 10px;
+    box-shadow:0 4px 20px rgba(0,0,0,.15);gap:4px;
+    z-index:50;white-space:nowrap;margin-bottom:4px;
+}
+.atv-reaction-wrap:hover .atv-reaction-picker,
+.atv-reaction-picker.show{display:flex}
+.atv-reaction-picker .reaction-pick-btn{
+    background:none;border:none;font-size:1.3rem;cursor:pointer;
+    padding:4px 6px;border-radius:8px;transition:transform .15s,background .15s;
+    line-height:1;
+}
+.atv-reaction-picker .reaction-pick-btn:hover{transform:scale(1.3);background:#f0f0f0}
+
+/* Enhanced Feed: Replies section */
+.atv-feed-replies{
+    margin-top:10px;padding-top:10px;
+    border-top:1px solid var(--ink-05);
+    display:none;
+}
+.atv-feed-replies.open{display:block}
+.atv-feed-replies-list{display:flex;flex-direction:column;gap:8px}
+.atv-reply-item{
+    display:flex;gap:8px;align-items:flex-start;
+    font-size:.78rem;color:var(--ink-70);
+}
+.atv-reply-avatar{
+    width:24px;height:24px;border-radius:50%;flex-shrink:0;
+    overflow:hidden;display:flex;align-items:center;justify-content:center;
+    background:var(--ink-10);color:var(--ink-70);font-weight:600;font-size:.6rem;
+}
+.atv-reply-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.atv-reply-body{flex:1;min-width:0}
+.atv-reply-name{font-weight:600;color:var(--ink);font-size:.75rem}
+.atv-reply-text{margin-top:1px}
+.atv-reply-time{font-size:.62rem;color:var(--ink-40);margin-top:2px}
+.atv-reply-form{display:flex;gap:8px;margin-top:8px;align-items:center}
+.atv-reply-form input{
+    flex:1;border:1px solid var(--ink-10);border-radius:100px;
+    padding:6px 14px;font-size:.78rem;outline:none;
+    transition:border-color var(--dur-fast);
+    background:var(--white);color:var(--ink);
+}
+.atv-reply-form input:focus{border-color:var(--emerald)}
+.atv-reply-form button{
+    background:var(--emerald);color:white;border:none;
+    border-radius:100px;padding:6px 14px;font-size:.75rem;
+    font-weight:600;cursor:pointer;white-space:nowrap;
+    transition:opacity var(--dur-fast);
+    min-height:32px;
+}
+.atv-reply-form button:hover{opacity:.9}
+.atv-reply-form button:disabled{opacity:.5;cursor:not-allowed}
+
 /* Dark mode overrides */
 [data-theme="dark"] .atv-streak-widget{
     background:linear-gradient(135deg,rgba(47,111,100,.12),var(--white));
@@ -3699,6 +3792,9 @@ select:focus:not(:focus-visible){outline:none}
 [data-theme="dark"] .atv-input,[data-theme="dark"] .atv-textarea{
     background:var(--ink-05);border-color:var(--ink-10);color:var(--ink);
 }
+[data-theme="dark"] .atv-reaction-picker{background:var(--ink-05);box-shadow:0 4px 20px rgba(0,0,0,.4)}
+[data-theme="dark"] .atv-reaction-picker .reaction-pick-btn:hover{background:var(--ink-10)}
+[data-theme="dark"] .atv-reply-form input{background:var(--ink-05);border-color:var(--ink-10);color:var(--ink)}
 
 /* Mobile */
 @media(max-width:600px){

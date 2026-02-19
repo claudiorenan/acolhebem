@@ -2422,15 +2422,48 @@ class AcolheBemApp {
                 return;
             }
 
-            // Load profile names for feed items
             const userIds = [...new Set(items.map(i => i.user_id))];
-            const { data: profiles } = await sb
-                .from('profiles')
-                .select('id, name, photo_url')
-                .in('id', userIds);
+            const checkinIds = items.map(i => i.id);
+
+            // Parallel fetches: profiles (with city), reaction counts, reply counts, user reactions
+            const currentUserId = this.currentUser?.id;
+            const [profilesRes, reactionsRes, repliesRes, userReactionsRes] = await Promise.all([
+                sb.from('profiles').select('id, name, photo_url, city').in('id', userIds),
+                sb.from('checkin_reactions').select('checkin_id, reaction_type').in('checkin_id', checkinIds),
+                sb.from('checkin_replies').select('checkin_id').in('checkin_id', checkinIds),
+                currentUserId
+                    ? sb.from('checkin_reactions').select('checkin_id, reaction_type').in('checkin_id', checkinIds).eq('user_id', currentUserId)
+                    : Promise.resolve({ data: [] }),
+            ]);
 
             const profileMap = {};
-            (profiles || []).forEach(p => { profileMap[p.id] = p; });
+            (profilesRes.data || []).forEach(p => { profileMap[p.id] = p; });
+
+            // Build reaction counts per checkin
+            const reactionCounts = {};
+            (reactionsRes.data || []).forEach(r => {
+                reactionCounts[r.checkin_id] = (reactionCounts[r.checkin_id] || 0) + 1;
+            });
+
+            // Build reply counts per checkin
+            const replyCounts = {};
+            (repliesRes.data || []).forEach(r => {
+                replyCounts[r.checkin_id] = (replyCounts[r.checkin_id] || 0) + 1;
+            });
+
+            // Build user reactions map
+            const userReactions = {};
+            (userReactionsRes.data || []).forEach(r => {
+                userReactions[r.checkin_id] = r.reaction_type;
+            });
+
+            // Enrich items
+            items.forEach(item => {
+                item.reactionCount = reactionCounts[item.id] || 0;
+                item.replyCount = replyCounts[item.id] || 0;
+                item.userReacted = !!userReactions[item.id];
+                item.userReactionType = userReactions[item.id] || null;
+            });
 
             this.$('atvFeedEmpty').style.display = 'none';
             this.renderMotivationFeed(items, profileMap);
@@ -2442,33 +2475,427 @@ class AcolheBemApp {
 
     renderMotivationFeed(items, profileMap) {
         const feedEl = this.$('atvFeed');
-        feedEl.innerHTML = items.map(item => {
+        feedEl.innerHTML = '';
+        items.forEach(item => {
             const profile = profileMap[item.user_id] || {};
-            const name = profile.name || 'Anonimo';
-            const initial = name.charAt(0).toUpperCase();
-            const typeObj = ACTIVITY_TYPES.find(t => t.key === item.activity_type);
-            const badge = (typeObj ? typeObj.emoji : '') + ' ' + item.duration_minutes + ' min';
-            const avatarHtml = profile.photo_url
-                ? `<img src="${profile.photo_url}" alt="${name}">`
-                : initial;
-            const timeAgo = this._dmTimeAgo(item.created_at);
+            const card = this._buildMotivationCard(item, profile);
+            feedEl.appendChild(card);
+        });
+    }
 
-            return `<div class="atv-feed-item">
-                <div class="atv-feed-avatar">${avatarHtml}</div>
-                <div class="atv-feed-body">
+    _buildMotivationCard(item, profile) {
+        const name = (profile.name || 'Anonimo').split(' ')[0];
+        const initial = name.charAt(0).toUpperCase();
+        const typeObj = ACTIVITY_TYPES.find(t => t.key === item.activity_type);
+        const typeName = typeObj ? typeObj.label : item.activity_type;
+        const typeEmoji = typeObj ? typeObj.emoji : '';
+        const badge = typeEmoji + ' ' + item.duration_minutes + ' min';
+        const timeAgo = this._dmTimeAgo(item.created_at);
+        const city = profile.city ? this._escapeHtml(profile.city) : '';
+
+        // Reaction icon
+        const userReactionType = item.userReactionType || 'like';
+        const reactionIcon = item.userReacted
+            ? (this._reactionTypes.find(r => r.type === userReactionType)?.icon || '❤️')
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+
+        const card = document.createElement('div');
+        card.className = 'atv-feed-item';
+        card.dataset.checkinId = item.id;
+
+        card.innerHTML = `
+            <div class="atv-feed-avatar">${profile.photo_url
+                ? `<img src="${profile.photo_url}" alt="${this._escapeHtml(name)}">`
+                : initial}</div>
+            <div class="atv-feed-body">
+                <div class="atv-feed-header-row">
                     <span class="atv-feed-name">${this._escapeHtml(name)}</span>
+                    ${city ? `<span class="atv-feed-city">${city}</span>` : ''}
+                </div>
+                <div class="atv-feed-activity-row">
+                    <span class="atv-feed-type">${this._escapeHtml(typeName)}</span>
                     <span class="atv-feed-badge">${badge}</span>
-                    <p class="atv-feed-msg">${this._escapeHtml(item.motivation_message)}</p>
-                    <span class="atv-feed-time">${timeAgo}</span>
+                </div>
+                <p class="atv-feed-msg">${this._escapeHtml(item.motivation_message)}</p>
+                <span class="atv-feed-time">${timeAgo}</span>
+                <div class="atv-feed-brand">AcolheBem.com.br — Plataforma de Acolhimento e Movimento</div>
+                <div class="atv-feed-actions">
+                    <div class="atv-reaction-wrap">
+                        <button class="feed-action-btn atv-like-btn ${item.userReacted ? 'liked' : ''}" data-checkin-id="${item.id}">
+                            <span class="reaction-icon">${reactionIcon}</span>
+                            <span class="atv-like-count">${item.reactionCount || ''}</span>
+                        </button>
+                        <div class="atv-reaction-picker" id="atvReactionPicker_${item.id}">
+                            ${this._reactionTypes.map(r =>
+                                `<button class="reaction-pick-btn" data-checkin-id="${item.id}" data-type="${r.type}" title="${r.label}">${r.icon}</button>`
+                            ).join('')}
+                        </div>
+                    </div>
+                    <button class="feed-action-btn atv-reply-btn" data-checkin-id="${item.id}">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        <span class="atv-reply-count">${item.replyCount || ''}</span>
+                    </button>
+                    <button class="feed-action-btn atv-share-btn" data-checkin-id="${item.id}" title="Compartilhar como imagem">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                    </button>
+                </div>
+                <div class="atv-feed-replies" id="atvReplies_${item.id}">
+                    <div class="atv-feed-replies-list" id="atvRepliesList_${item.id}"></div>
+                    <div class="atv-reply-form">
+                        <input type="text" placeholder="Escreva uma resposta..." maxlength="500" id="atvReplyInput_${item.id}">
+                        <button id="atvReplyBtn_${item.id}">Enviar</button>
+                    </div>
                 </div>
             </div>`;
-        }).join('');
+
+        // Event: like button
+        const likeBtn = card.querySelector('.atv-like-btn');
+        likeBtn.addEventListener('click', () => {
+            this._toggleCheckinReaction(item.id, item.userReacted ? item.userReactionType || 'like' : 'like');
+        });
+
+        // Event: reaction picker buttons
+        card.querySelectorAll('.atv-reaction-picker .reaction-pick-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this._toggleCheckinReaction(btn.dataset.checkinId, btn.dataset.type);
+                const picker = card.querySelector('.atv-reaction-picker');
+                if (picker) picker.classList.remove('show');
+            });
+        });
+
+        // Event: reply button
+        const replyBtn = card.querySelector('.atv-reply-btn');
+        replyBtn.addEventListener('click', () => {
+            const repliesSection = card.querySelector('.atv-feed-replies');
+            const isOpen = repliesSection.classList.toggle('open');
+            if (isOpen && !repliesSection.dataset.loaded) {
+                repliesSection.dataset.loaded = '1';
+                this._loadCheckinReplies(item.id);
+            }
+        });
+
+        // Event: submit reply
+        const replySubmitBtn = card.querySelector(`#atvReplyBtn_${item.id}`);
+        const replyInput = card.querySelector(`#atvReplyInput_${item.id}`);
+        replySubmitBtn.addEventListener('click', () => {
+            const content = replyInput.value.trim();
+            if (content) this._createCheckinReply(item.id, content);
+        });
+        replyInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const content = replyInput.value.trim();
+                if (content) this._createCheckinReply(item.id, content);
+            }
+        });
+
+        // Event: share as image
+        const shareBtn = card.querySelector('.atv-share-btn');
+        shareBtn.addEventListener('click', () => {
+            this._shareCheckinAsImage(item, profile);
+        });
+
+        return card;
     }
 
     _escapeHtml(str) {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    // ========================================
+    //  CHECKIN REACTIONS & REPLIES
+    // ========================================
+
+    async _toggleCheckinReaction(checkinId, reactionType = 'like') {
+        const sb = window.supabaseClient;
+        if (!sb) return;
+        const user = this.currentUser;
+        if (!user) {
+            ErrorHandler.showToast('Faca login para reagir.', 'warning');
+            this.showAuth?.();
+            return;
+        }
+
+        const card = document.querySelector(`.atv-feed-item[data-checkin-id="${checkinId}"]`);
+        if (!card) return;
+        const likeBtn = card.querySelector('.atv-like-btn');
+        const countEl = card.querySelector('.atv-like-count');
+        const iconEl = card.querySelector('.atv-like-btn .reaction-icon');
+
+        try {
+            // Check existing reaction
+            const { data: existing } = await sb
+                .from('checkin_reactions')
+                .select('id, reaction_type')
+                .eq('checkin_id', checkinId)
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (existing) {
+                if (existing.reaction_type === reactionType) {
+                    // Same type — toggle off
+                    await sb.from('checkin_reactions').delete().eq('id', existing.id);
+                    likeBtn.classList.remove('liked');
+                    iconEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+                    const cur = parseInt(countEl.textContent) || 0;
+                    countEl.textContent = cur > 1 ? cur - 1 : '';
+                } else {
+                    // Different type — update
+                    await sb.from('checkin_reactions').update({ reaction_type: reactionType }).eq('id', existing.id);
+                    const rObj = this._reactionTypes.find(r => r.type === reactionType);
+                    iconEl.textContent = rObj?.icon || '❤️';
+                    likeBtn.classList.add('liked');
+                }
+            } else {
+                // New reaction
+                const { error } = await sb.from('checkin_reactions')
+                    .insert({ checkin_id: checkinId, user_id: user.id, reaction_type: reactionType });
+                if (error) throw error;
+                likeBtn.classList.add('liked');
+                const rObj = this._reactionTypes.find(r => r.type === reactionType);
+                iconEl.textContent = rObj?.icon || '❤️';
+                const cur = parseInt(countEl.textContent) || 0;
+                countEl.textContent = cur + 1;
+            }
+        } catch (err) {
+            console.error('Error toggling checkin reaction:', err);
+            ErrorHandler.showToast('Erro ao reagir. Tente novamente.', 'error');
+        }
+    }
+
+    async _loadCheckinReplies(checkinId) {
+        const sb = window.supabaseClient;
+        if (!sb) return;
+        const listEl = document.getElementById(`atvRepliesList_${checkinId}`);
+        if (!listEl) return;
+
+        try {
+            const { data: replies, error } = await sb
+                .from('checkin_replies')
+                .select('id, content, created_at, user_id')
+                .eq('checkin_id', checkinId)
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+            if (!replies || replies.length === 0) {
+                listEl.innerHTML = '<div style="font-size:.75rem;color:var(--ink-40);padding:4px 0">Nenhuma resposta ainda.</div>';
+                return;
+            }
+
+            // Fetch reply author profiles
+            const replyUserIds = [...new Set(replies.map(r => r.user_id))];
+            const { data: profiles } = await sb.from('profiles').select('id, name, photo_url').in('id', replyUserIds);
+            const profileMap = {};
+            (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+            listEl.innerHTML = replies.map(r => {
+                const p = profileMap[r.user_id] || {};
+                const rName = (p.name || 'Anonimo').split(' ')[0];
+                const rInitial = rName.charAt(0).toUpperCase();
+                const avatarHtml = p.photo_url
+                    ? `<img src="${p.photo_url}" alt="${this._escapeHtml(rName)}">`
+                    : rInitial;
+                return `<div class="atv-reply-item">
+                    <div class="atv-reply-avatar">${avatarHtml}</div>
+                    <div class="atv-reply-body">
+                        <span class="atv-reply-name">${this._escapeHtml(rName)}</span>
+                        <div class="atv-reply-text">${this._escapeHtml(r.content)}</div>
+                        <span class="atv-reply-time">${this._dmTimeAgo(r.created_at)}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        } catch (err) {
+            console.error('Error loading checkin replies:', err);
+            listEl.innerHTML = '<div style="font-size:.75rem;color:#e53935;padding:4px 0">Erro ao carregar respostas.</div>';
+        }
+    }
+
+    async _createCheckinReply(checkinId, content) {
+        const sb = window.supabaseClient;
+        if (!sb) return;
+        const user = this.currentUser;
+        if (!user) {
+            ErrorHandler.showToast('Faca login para responder.', 'warning');
+            this.showAuth?.();
+            return;
+        }
+
+        const input = document.getElementById(`atvReplyInput_${checkinId}`);
+        const btn = document.getElementById(`atvReplyBtn_${checkinId}`);
+        if (!input || !btn) return;
+
+        // Content filter
+        const filterResult = ContentFilter.check(content);
+        if (filterResult.blocked) {
+            ErrorHandler.showToast(ContentFilter.message(filterResult.type), 'warning');
+            return;
+        }
+
+        btn.disabled = true;
+        try {
+            const { error } = await sb.from('checkin_replies')
+                .insert({ checkin_id: checkinId, user_id: user.id, content });
+            if (error) throw error;
+
+            input.value = '';
+            // Update reply count on card
+            const card = document.querySelector(`.atv-feed-item[data-checkin-id="${checkinId}"]`);
+            if (card) {
+                const countEl = card.querySelector('.atv-reply-count');
+                if (countEl) {
+                    const cur = parseInt(countEl.textContent) || 0;
+                    countEl.textContent = cur + 1;
+                }
+            }
+            // Reload replies
+            await this._loadCheckinReplies(checkinId);
+        } catch (err) {
+            console.error('Error creating checkin reply:', err);
+            ErrorHandler.showToast('Erro ao enviar resposta.', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async _shareCheckinAsImage(item, profile) {
+        const W = 1080, H = 1080;
+        const canvas = document.createElement('canvas');
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext('2d');
+
+        // Background gradient (emerald)
+        const grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0, '#10b981');
+        grad.addColorStop(1, '#059669');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+
+        // White card
+        const cardX = 60, cardY = 140, cardW = W - 120, cardH = H - 280;
+        const radius = 32;
+        ctx.beginPath();
+        ctx.moveTo(cardX + radius, cardY);
+        ctx.lineTo(cardX + cardW - radius, cardY);
+        ctx.quadraticCurveTo(cardX + cardW, cardY, cardX + cardW, cardY + radius);
+        ctx.lineTo(cardX + cardW, cardY + cardH - radius);
+        ctx.quadraticCurveTo(cardX + cardW, cardY + cardH, cardX + cardW - radius, cardY + cardH);
+        ctx.lineTo(cardX + radius, cardY + cardH);
+        ctx.quadraticCurveTo(cardX, cardY + cardH, cardX, cardY + cardH - radius);
+        ctx.lineTo(cardX, cardY + radius);
+        ctx.quadraticCurveTo(cardX, cardY, cardX + radius, cardY);
+        ctx.closePath();
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+
+        // Content inside card
+        const pad = 56;
+        const cx = cardX + pad;
+        let cy = cardY + pad;
+        const maxW = cardW - pad * 2;
+
+        // Activity type + emoji + duration
+        const typeObj = ACTIVITY_TYPES.find(t => t.key === item.activity_type);
+        const typeLine = (typeObj ? typeObj.emoji + ' ' + typeObj.label.toUpperCase() : item.activity_type.toUpperCase())
+            + '  ·  ' + item.duration_minutes + ' min';
+        ctx.font = 'bold 32px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+        ctx.fillStyle = '#10b981';
+        ctx.fillText(typeLine, cx, cy + 32);
+        cy += 72;
+
+        // Separator line
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + maxW, cy);
+        ctx.stroke();
+        cy += 40;
+
+        // Motivation message (word-wrap)
+        ctx.font = '36px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+        ctx.fillStyle = '#1f2937';
+        const msgLines = this._wrapCanvasText(ctx, '"' + (item.motivation_message || '') + '"', maxW);
+        msgLines.forEach(line => {
+            ctx.fillText(line, cx, cy + 36);
+            cy += 48;
+        });
+        cy += 24;
+
+        // Author name + city
+        const name = (profile.name || 'Anonimo').split(' ')[0];
+        const cityText = profile.city ? ' · ' + profile.city : '';
+        ctx.font = '600 28px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+        ctx.fillStyle = '#6b7280';
+        ctx.fillText('— ' + name + cityText, cx, cy + 28);
+
+        // Branding at bottom of card
+        const brandY = cardY + cardH - pad;
+        ctx.font = '500 22px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+        ctx.fillStyle = '#10b981';
+        ctx.textAlign = 'center';
+        ctx.fillText('AcolheBem.com.br', W / 2, brandY - 28);
+        ctx.font = '400 18px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+        ctx.fillStyle = '#9ca3af';
+        ctx.fillText('Plataforma de Acolhimento e Movimento', W / 2, brandY);
+        ctx.textAlign = 'left';
+
+        // Top branding outside card
+        ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.textAlign = 'center';
+        ctx.fillText('AcolheBem', W / 2, 90);
+        ctx.textAlign = 'left';
+
+        // Export
+        canvas.toBlob(async (blob) => {
+            if (!blob) return;
+            const file = new File([blob], 'acolhebem-atividade.png', { type: 'image/png' });
+
+            if (navigator.share && navigator.canShare?.({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file], title: 'AcolheBem - Atividade', text: item.motivation_message });
+                    return;
+                } catch { /* user cancelled or share failed — fall through to download */ }
+            }
+
+            // Fallback: download
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'acolhebem-atividade.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            ErrorHandler.showToast('Imagem salva!', 'success');
+        }, 'image/png');
+    }
+
+    _wrapCanvasText(ctx, text, maxWidth) {
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = '';
+        const maxLines = 6;
+
+        for (const word of words) {
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            const metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = word;
+                if (lines.length >= maxLines) {
+                    lines[lines.length - 1] += '...';
+                    return lines;
+                }
+            } else {
+                currentLine = testLine;
+            }
+        }
+        if (currentLine) lines.push(currentLine);
+        return lines;
     }
 
     async loadMembrosData() {
