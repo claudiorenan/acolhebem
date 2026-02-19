@@ -1643,6 +1643,22 @@ class AcolheBemApp {
                 this._membrosPsiData = [];
             }
 
+            // Load psi profiles from DB to map CRP -> user_id for follow
+            const { data: psiProfiles, error: psiProfilesErr } = await sb
+                .from('profiles')
+                .select('id, crp')
+                .eq('is_psi', true);
+
+            if (!psiProfilesErr && psiProfiles) {
+                this._membrosPsiCrpMap = {};
+                psiProfiles.forEach(p => {
+                    if (p.crp) {
+                        const normalizedCrp = p.crp.replace(/\D/g, '');
+                        this._membrosPsiCrpMap[normalizedCrp] = p.id;
+                    }
+                });
+            }
+
             // Load member profiles (non-psi) from Supabase
             const { data: profiles, error: profilesErr } = await sb
                 .from('profiles')
@@ -1692,6 +1708,8 @@ class AcolheBemApp {
 
     _renderMembrosPsi(listEl, search) {
         let psiList = this._membrosPsiData || [];
+        const currentUserId = this.currentUser?.id;
+        const crpMap = this._membrosPsiCrpMap || {};
 
         if (search) {
             psiList = psiList.filter(p => p.name && p.name.toLowerCase().includes(search));
@@ -1704,11 +1722,6 @@ class AcolheBemApp {
 
         listEl.innerHTML = psiList.map(psi => {
             const nameEsc = this.escapeHTML(psi.name);
-            const profileUrl = this.escapeHTML(psi.profileUrl || '');
-            const wppMsg = encodeURIComponent(`Oi Psi. ${psi.name}, encontrei o seu perfil na plataforma AcolheBem do Cadê Meu Psi. Gostaria de saber mais sobre o atendimento.`);
-            const wppUrl = psi.whatsappNumber
-                ? `https://wa.me/${psi.whatsappNumber}?text=${wppMsg}`
-                : (psi.whatsappUrl || profileUrl);
 
             // Avatar
             let avatarHTML;
@@ -1726,11 +1739,16 @@ class AcolheBemApp {
                 ? '<span style="color:#25d366;font-size:.7rem">● Disponivel</span>'
                 : '<span style="color:var(--ink-40);font-size:.7rem">● Ativo</span>';
 
-            // Action: WhatsApp button
-            const actionHTML = `<a href="${wppUrl}" target="_blank" rel="noopener noreferrer" class="membro-follow-btn" style="text-decoration:none;color:var(--emerald);border-color:var(--emerald)">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
-                WhatsApp
-            </a>`;
+            // Match API psi to DB profile via CRP for follow button
+            let actionHTML = '';
+            if (this.currentUser && psi.crp) {
+                const normalizedCrp = psi.crp.replace(/\D/g, '');
+                const userId = crpMap[normalizedCrp];
+                if (userId && userId !== currentUserId) {
+                    const isFollowing = this._followingSet.has(userId);
+                    actionHTML = `<button class="membro-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${userId}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`;
+                }
+            }
 
             return `<div class="membro-card">
                 ${avatarHTML}
@@ -1743,6 +1761,37 @@ class AcolheBemApp {
                 ${actionHTML}
             </div>`;
         }).join('');
+
+        // Attach follow/unfollow handlers for psi cards
+        listEl.querySelectorAll('.membro-follow-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                btn.disabled = true;
+                const targetUserId = btn.dataset.userId;
+                const isCurrentlyFollowing = btn.classList.contains('following');
+
+                if (isCurrentlyFollowing) {
+                    const { error } = await Feed.unfollowUser(targetUserId);
+                    if (!error) {
+                        this._followingSet.delete(targetUserId);
+                        btn.classList.remove('following');
+                        btn.textContent = 'Seguir';
+                    }
+                } else {
+                    const { error } = await Feed.followUser(targetUserId);
+                    if (!error) {
+                        this._followingSet.add(targetUserId);
+                        btn.classList.add('following');
+                        btn.textContent = 'Seguindo';
+                        const actorName = this.currentProfile?.name || 'Alguem';
+                        Notifications.notifyFollow(targetUserId, actorName);
+                        this._updateOnboarding('followed_someone');
+                        this._awardBadge('first_follow');
+                    }
+                }
+                btn.disabled = false;
+            });
+        });
     }
 
     _renderMembrosUsers(listEl, search) {
