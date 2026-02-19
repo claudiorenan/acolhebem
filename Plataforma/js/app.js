@@ -2393,7 +2393,7 @@ class AcolheBemApp {
             const userIds = [...new Set(items.map(i => i.user_id))];
             const { data: profiles } = await sb
                 .from('profiles')
-                .select('id, name, avatar_url')
+                .select('id, name, photo_url')
                 .in('id', userIds);
 
             const profileMap = {};
@@ -2415,8 +2415,8 @@ class AcolheBemApp {
             const initial = name.charAt(0).toUpperCase();
             const typeObj = ACTIVITY_TYPES.find(t => t.key === item.activity_type);
             const badge = (typeObj ? typeObj.emoji : '') + ' ' + item.duration_minutes + ' min';
-            const avatarHtml = profile.avatar_url
-                ? `<img src="${profile.avatar_url}" alt="${name}">`
+            const avatarHtml = profile.photo_url
+                ? `<img src="${profile.photo_url}" alt="${name}">`
                 : initial;
             const timeAgo = this._dmTimeAgo(item.created_at);
 
