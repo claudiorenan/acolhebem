@@ -137,9 +137,13 @@ const ErrorHandler = {
         || location.hostname === 'acolhebem.com.br'
         || location.hostname === 'www.acolhebem.com.br';
 
+      const dsn = window.SENTRY_DSN || '';
+      if (!dsn || dsn.includes('YOUR_DSN_HERE')) {
+        console.info('Sentry: No valid DSN configured, skipping initialization.');
+        return;
+      }
       Sentry.init({
-        // TODO: Replace with your Sentry DSN from https://sentry.io
-        dsn: 'https://YOUR_DSN_HERE@o0.ingest.sentry.io/0',
+        dsn,
         environment: isProduction ? 'production' : 'development',
         release: 'acolhebem@1.0.0',
         integrations: [Sentry.browserTracingIntegration()],
@@ -147,7 +151,7 @@ const ErrorHandler = {
         sampleRate: isProduction ? 1.0 : 1.0,
         beforeSend(event) {
           // Don't send events in development unless explicitly testing
-          if (!isProduction && !localStorage.getItem('sentry_debug')) {
+          if (!isProduction && !localStorage.getItem('ab_sentry_debug')) {
             return null;
           }
           return event;
@@ -249,12 +253,12 @@ const ErrorHandler = {
       return 'Muitas tentativas. Aguarde um momento e tente novamente.';
     }
     if (lower.includes('jwt') || lower.includes('token')) {
-      return 'Sua sessao expirou. Faca login novamente.';
+      return 'Sua sessão expirou. Faça login novamente.';
     }
 
     // Supabase RLS / permissions
     if (lower.includes('policy') || lower.includes('permission') || lower.includes('rls')) {
-      return 'Voce nao tem permissao para esta acao.';
+      return 'Você não tem permissão para esta ação.';
     }
 
     // Storage errors

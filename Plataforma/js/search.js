@@ -72,9 +72,10 @@ const Search = {
    */
   highlight(text, query) {
     if (!text || !query) return text || '';
+    const safe = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`(${escaped})`, 'gi');
-    return text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(regex, '<mark>$1</mark>');
+    return safe.replace(regex, '<mark>$1</mark>');
   },
 
   /**

@@ -3,7 +3,7 @@
  * Cache-first for static assets, Network-first for API
  */
 
-const CACHE_VERSION = 'acolhebem-v8';
+const CACHE_VERSION = 'acolhebem-v10';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 

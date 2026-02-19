@@ -7,6 +7,9 @@ const RATE_LIMITS = {
   create_post:    { max: 10, window: 3600 },
   create_reply:   { max: 30, window: 3600 },
   toggle_reaction: { max: 60, window: 3600 },
+  follow_user:    { max: 30, window: 3600 },
+  send_message:   { max: 50, window: 3600 },
+  create_report:  { max: 5,  window: 3600 },
 };
 
 async function checkRateLimit(action) {
@@ -62,7 +65,7 @@ const Feed = {
   async createTopic(name, emoji, description) {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
-    if (!user) return { topic: null, error: 'Faca login para criar um tema.' };
+    if (!user) return { topic: null, error: 'Faça login para criar um tema.' };
 
     const slug = name
       .toLowerCase()
@@ -146,45 +149,29 @@ const Feed = {
 
     if (error) { ErrorHandler.handle('feed.loadPosts', error, { silent: true }); return []; }
 
-    // Fetch reaction counts and user reactions in bulk
     const postIds = posts.map(p => p.id);
+    if (postIds.length === 0) return [];
 
-    const { data: reactionCounts } = await sb
-      .from('reactions')
-      .select('post_id')
-      .in('post_id', postIds);
+    // Fetch reaction counts, user reactions, and reply counts in parallel
+    const queries = [
+      sb.from('reactions').select('post_id').in('post_id', postIds),
+      sb.from('replies').select('post_id').in('post_id', postIds),
+    ];
+    if (user) {
+      queries.push(sb.from('reactions').select('post_id, reaction_type').eq('user_id', user.id).in('post_id', postIds));
+    }
+
+    const results = await Promise.all(queries);
+    const [reactionRes, replyRes] = results;
 
     const countMap = {};
-    if (reactionCounts) {
-      reactionCounts.forEach(r => {
-        countMap[r.post_id] = (countMap[r.post_id] || 0) + 1;
-      });
-    }
-
-    let userReactions = {};
-    if (user) {
-      const { data: userReacts } = await sb
-        .from('reactions')
-        .select('post_id, reaction_type')
-        .eq('user_id', user.id)
-        .in('post_id', postIds);
-      if (userReacts) {
-        userReacts.forEach(r => { userReactions[r.post_id] = r.reaction_type || 'like'; });
-      }
-    }
-
-    // Fetch reply counts
-    const { data: replyCounts } = await sb
-      .from('replies')
-      .select('post_id')
-      .in('post_id', postIds);
+    if (reactionRes.data) reactionRes.data.forEach(r => { countMap[r.post_id] = (countMap[r.post_id] || 0) + 1; });
 
     const replyCountMap = {};
-    if (replyCounts) {
-      replyCounts.forEach(r => {
-        replyCountMap[r.post_id] = (replyCountMap[r.post_id] || 0) + 1;
-      });
-    }
+    if (replyRes.data) replyRes.data.forEach(r => { replyCountMap[r.post_id] = (replyCountMap[r.post_id] || 0) + 1; });
+
+    const userReactions = {};
+    if (user && results[2]?.data) results[2].data.forEach(r => { userReactions[r.post_id] = r.reaction_type || 'like'; });
 
     return posts.map(p => ({
       ...p,
@@ -226,19 +213,19 @@ const Feed = {
     const postIds = posts.map(p => p.id);
     if (postIds.length === 0) return [];
 
-    const { data: reactionCounts } = await sb.from('reactions').select('post_id').in('post_id', postIds);
+    const fQueries = [
+      sb.from('reactions').select('post_id').in('post_id', postIds),
+      sb.from('replies').select('post_id').in('post_id', postIds),
+    ];
+    if (user) fQueries.push(sb.from('reactions').select('post_id, reaction_type').eq('user_id', user.id).in('post_id', postIds));
+    const fResults = await Promise.all(fQueries);
+
     const countMap = {};
-    if (reactionCounts) reactionCounts.forEach(r => { countMap[r.post_id] = (countMap[r.post_id] || 0) + 1; });
-
-    let userReactions = {};
-    if (user) {
-      const { data: userReacts } = await sb.from('reactions').select('post_id, reaction_type').eq('user_id', user.id).in('post_id', postIds);
-      if (userReacts) userReacts.forEach(r => { userReactions[r.post_id] = r.reaction_type || 'like'; });
-    }
-
-    const { data: replyCounts } = await sb.from('replies').select('post_id').in('post_id', postIds);
+    if (fResults[0].data) fResults[0].data.forEach(r => { countMap[r.post_id] = (countMap[r.post_id] || 0) + 1; });
     const replyCountMap = {};
-    if (replyCounts) replyCounts.forEach(r => { replyCountMap[r.post_id] = (replyCountMap[r.post_id] || 0) + 1; });
+    if (fResults[1].data) fResults[1].data.forEach(r => { replyCountMap[r.post_id] = (replyCountMap[r.post_id] || 0) + 1; });
+    const userReactions = {};
+    if (user && fResults[2]?.data) fResults[2].data.forEach(r => { userReactions[r.post_id] = r.reaction_type || 'like'; });
 
     return posts.map(p => ({
       ...p,
@@ -257,16 +244,17 @@ const Feed = {
    * @param {boolean} isAnonymous
    * @returns {Promise<{post: object|null, error: string|null}>}
    */
-  async createPost(content, topicId = null, isAnonymous = false) {
+  async createPost(content, topicId = null, isAnonymous = false, imageUrl = null) {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
-    if (!user) return { post: null, error: 'Faca login para publicar.' };
+    if (!user) return { post: null, error: 'Faça login para publicar.' };
 
     const rl = await checkRateLimit('create_post');
-    if (!rl.allowed) return { post: null, error: `Voce atingiu o limite de ${rl.max} posts por hora. Tente novamente mais tarde.` };
+    if (!rl.allowed) return { post: null, error: `Você atingiu o limite de ${rl.max} posts por hora. Tente novamente mais tarde.` };
 
     const insertData = { user_id: user.id, content, is_anonymous: isAnonymous };
     if (topicId) insertData.topic_id = topicId;
+    if (imageUrl) insertData.image_url = imageUrl;
 
     const { data, error } = await sb
       .from('posts')
@@ -276,6 +264,21 @@ const Feed = {
 
     if (error) return { post: null, error: error.message };
     return { post: { ...data, author: data.profiles, reactionCount: 0, replyCount: 0, userReacted: false }, error: null };
+  },
+
+  /**
+   * Edit own post content.
+   * @param {string} postId
+   * @param {string} newContent
+   * @returns {Promise<{error: string|null}>}
+   */
+  async editPost(postId, newContent) {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return { error: 'Faça login para editar.' };
+    const { error } = await sb.from('posts').update({ content: newContent, edited_at: new Date().toISOString() }).eq('id', postId).eq('user_id', user.id);
+    if (error) return { error: error.message };
+    return { error: null };
   },
 
   /**
@@ -298,7 +301,7 @@ const Feed = {
   async toggleReaction(postId, reactionType = 'like') {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
-    if (!user) return { liked: false, error: 'Faca login para reagir.' };
+    if (!user) return { liked: false, error: 'Faça login para reagir.' };
 
     // Check if already reacted (any type)
     const { data: existing } = await sb
@@ -312,15 +315,15 @@ const Feed = {
       if (existing.reaction_type === reactionType) {
         // Same reaction type — toggle off
         await sb.from('reactions').delete().eq('id', existing.id);
-        return { liked: false, error: null };
+        return { liked: false, switched: false, error: null };
       } else {
-        // Different type — update to new type
+        // Different type — update to new type (count stays same)
         await sb.from('reactions').update({ reaction_type: reactionType }).eq('id', existing.id);
-        return { liked: true, error: null };
+        return { liked: true, switched: true, error: null };
       }
     } else {
       const rl = await checkRateLimit('toggle_reaction');
-      if (!rl.allowed) return { liked: false, error: `Voce atingiu o limite de ${rl.max} reacoes por hora.` };
+      if (!rl.allowed) return { liked: false, error: `Você atingiu o limite de ${rl.max} reações por hora.` };
       const { error } = await sb
         .from('reactions')
         .insert({ post_id: postId, user_id: user.id, type: 'like', reaction_type: reactionType });
@@ -356,10 +359,10 @@ const Feed = {
   async createReply(postId, content, isAnonymous = false) {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
-    if (!user) return { reply: null, error: 'Faca login para responder.' };
+    if (!user) return { reply: null, error: 'Faça login para responder.' };
 
     const rl = await checkRateLimit('create_reply');
-    if (!rl.allowed) return { reply: null, error: `Voce atingiu o limite de ${rl.max} respostas por hora. Tente novamente mais tarde.` };
+    if (!rl.allowed) return { reply: null, error: `Você atingiu o limite de ${rl.max} respostas por hora. Tente novamente mais tarde.` };
 
     const { data, error } = await sb
       .from('replies')
@@ -379,6 +382,21 @@ const Feed = {
   async deleteReply(replyId) {
     const sb = window.supabaseClient;
     const { error } = await sb.from('replies').delete().eq('id', replyId);
+    if (error) return { error: error.message };
+    return { error: null };
+  },
+
+  /**
+   * Edit own reply content.
+   * @param {string} replyId
+   * @param {string} newContent
+   * @returns {Promise<{error: string|null}>}
+   */
+  async editReply(replyId, newContent) {
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    if (!user) return { error: 'Faça login para editar.' };
+    const { error } = await sb.from('replies').update({ content: newContent, edited_at: new Date().toISOString() }).eq('id', replyId).eq('user_id', user.id);
     if (error) return { error: error.message };
     return { error: null };
   },
@@ -493,7 +511,7 @@ const Feed = {
   async subscribeTopic(topicId) {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
-    if (!user) return { error: 'Faca login para ativar notificacoes.' };
+    if (!user) return { error: 'Faça login para ativar notificações.' };
 
     const { error } = await sb
       .from('topic_subscriptions')
@@ -514,7 +532,7 @@ const Feed = {
   async unsubscribeTopic(topicId) {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
-    if (!user) return { error: 'Faca login.' };
+    if (!user) return { error: 'Faça login.' };
 
     const { error } = await sb
       .from('topic_subscriptions')
@@ -558,7 +576,7 @@ const Feed = {
   async followUser(targetUserId) {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
-    if (!user) return { error: 'Faca login para seguir.' };
+    if (!user) return { error: 'Faça login para seguir.' };
 
     const { error } = await sb
       .from('user_follows')
@@ -579,7 +597,7 @@ const Feed = {
   async unfollowUser(targetUserId) {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
-    if (!user) return { error: 'Faca login.' };
+    if (!user) return { error: 'Faça login.' };
 
     const { error } = await sb
       .from('user_follows')
@@ -676,41 +694,19 @@ const Feed = {
     const postIds = posts.map(p => p.id);
     if (postIds.length === 0) return [];
 
-    const { data: reactionCounts } = await sb
-      .from('reactions')
-      .select('post_id')
-      .in('post_id', postIds);
+    const uQueries = [
+      sb.from('reactions').select('post_id').in('post_id', postIds),
+      sb.from('replies').select('post_id').in('post_id', postIds),
+    ];
+    if (currentUser) uQueries.push(sb.from('reactions').select('post_id, reaction_type').eq('user_id', currentUser.id).in('post_id', postIds));
+    const uResults = await Promise.all(uQueries);
 
     const countMap = {};
-    if (reactionCounts) {
-      reactionCounts.forEach(r => {
-        countMap[r.post_id] = (countMap[r.post_id] || 0) + 1;
-      });
-    }
-
-    let userReactions = {};
-    if (currentUser) {
-      const { data: userReacts } = await sb
-        .from('reactions')
-        .select('post_id, reaction_type')
-        .eq('user_id', currentUser.id)
-        .in('post_id', postIds);
-      if (userReacts) {
-        userReacts.forEach(r => { userReactions[r.post_id] = r.reaction_type || 'like'; });
-      }
-    }
-
-    const { data: replyCounts } = await sb
-      .from('replies')
-      .select('post_id')
-      .in('post_id', postIds);
-
+    if (uResults[0].data) uResults[0].data.forEach(r => { countMap[r.post_id] = (countMap[r.post_id] || 0) + 1; });
     const replyCountMap = {};
-    if (replyCounts) {
-      replyCounts.forEach(r => {
-        replyCountMap[r.post_id] = (replyCountMap[r.post_id] || 0) + 1;
-      });
-    }
+    if (uResults[1].data) uResults[1].data.forEach(r => { replyCountMap[r.post_id] = (replyCountMap[r.post_id] || 0) + 1; });
+    const userReactions = {};
+    if (currentUser && uResults[2]?.data) uResults[2].data.forEach(r => { userReactions[r.post_id] = r.reaction_type || 'like'; });
 
     return posts.map(p => ({
       ...p,

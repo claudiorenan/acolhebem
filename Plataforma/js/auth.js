@@ -114,7 +114,7 @@ const Auth = {
    */
   async signInPsi(email, password) {
     const sb = window.supabaseClient;
-    const SUPABASE_URL = sb.supabaseUrl || 'https://ynsxfifbbqhstlhuilzg.supabase.co';
+    const SUPABASE_URL = sb.supabaseUrl;
 
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/psi-auth`, {

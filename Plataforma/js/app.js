@@ -3,6 +3,12 @@
  * Particle system + D3.js hero + animated cards + community feed
  */
 
+// Suppress console.warn/log in production
+if (location.hostname === 'acolhebem.vercel.app' || location.hostname === 'acolhebem.com.br' || location.hostname === 'www.acolhebem.com.br') {
+    console.warn = () => {};
+    console.log = () => {};
+}
+
 // ============================================================
 //  PARTICLE SYSTEM (Canvas Background)
 // ============================================================
@@ -38,6 +44,10 @@ class ParticleSystem {
                 this.loop();
             }
         });
+
+        // Respect reduced-motion preference
+        this._reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (this._reducedMotion) { this.running = false; return; }
 
         const isMobile = window.innerWidth < 768;
         this.spawn(isMobile ? 25 : 60);
@@ -259,6 +269,7 @@ class AcolheBemApp {
 
         // ---- FEED UI ----
         this.initFeed();
+        this.initRealtimeFeed();
 
         // ---- ADMIN UI ----
         this.initAdmin();
@@ -272,6 +283,17 @@ class AcolheBemApp {
 
         // ---- ENGAGEMENT UI ----
         this._initEngagementUI();
+
+        // ---- DARK MODE TOGGLE ----
+        const savedTheme = localStorage.getItem('ab_theme');
+        if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        }
+        this.$('themeToggle').addEventListener('click', () => {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('ab_theme', isDark ? 'light' : 'dark');
+        });
 
         // load default tab (women)
         this.applyTheme();
@@ -340,7 +362,7 @@ class AcolheBemApp {
                 const isLogin = tab.dataset.authTab === 'login';
                 // Block signup tab if registration is closed
                 if (!isLogin && this._featureFlags?.open_registration === false) {
-                    alert('Os cadastros estao fechados no momento.');
+                    ErrorHandler.showToast('Os cadastros estão fechados no momento.', 'warning');
                     return;
                 }
                 this.$$('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -409,6 +431,8 @@ class AcolheBemApp {
                 this.$('adminBtn').style.display = this.currentProfile?.is_admin ? '' : 'none';
                 // Check if banned
                 if (this._checkBanned()) return;
+                // Email verification reminder
+                if (!session.user.email_confirmed_at) this._showEmailVerifyBanner(session.user.email);
                 // Engagement features
                 this.$('referralBtn').style.display = '';
                 this._recordCheckIn();
@@ -521,8 +545,8 @@ class AcolheBemApp {
             return;
         }
         if (!passField.value) {
-            Validation.showFieldError(passField, 'Senha e obrigatoria.');
-            errEl.textContent = 'Senha e obrigatoria.';
+            Validation.showFieldError(passField, 'Senha é obrigatória.');
+            errEl.textContent = 'Senha é obrigatória.';
             errEl.classList.add('visible');
             return;
         }
@@ -619,7 +643,7 @@ class AcolheBemApp {
 
         // Check feature flag — block if registration is closed
         if (this._featureFlags?.open_registration === false) {
-            errEl.textContent = 'Os cadastros estao fechados no momento. Tente novamente mais tarde.';
+            errEl.textContent = 'Os cadastros estão fechados no momento. Tente novamente mais tarde.';
             errEl.classList.add('visible');
             return;
         }
@@ -868,8 +892,13 @@ class AcolheBemApp {
     }
 
     getDayPassword() {
-        const day = new Date().getDate();
-        return String(day + 20);
+        const d = new Date();
+        const seed = `AcolheBem-${d.getDate()}-${d.getMonth()}-${d.getFullYear()}`;
+        let h = 5381;
+        for (let i = 0; i < seed.length; i++) {
+            h = ((h << 5) + h + seed.charCodeAt(i)) & 0x7fffffff;
+        }
+        return String((h % 9000) + 1000);
     }
 
     openGate(link) {
@@ -907,13 +936,53 @@ class AcolheBemApp {
         const postBtn = this.$('postBtn');
         const loadMoreBtn = this.$('feedLoadMore');
 
+        const charCounter = document.createElement('span');
+        charCounter.className = 'composer-char-counter';
+        charCounter.textContent = '0 / 2000';
+        composerText.parentElement.appendChild(charCounter);
+
         composerText.addEventListener('input', () => {
             postBtn.disabled = !composerText.value.trim();
+            const len = composerText.value.length;
+            charCounter.textContent = `${len} / 2000`;
+            charCounter.classList.toggle('near-limit', len > 1800);
+            charCounter.classList.toggle('at-limit', len >= 2000);
         });
 
         postBtn.addEventListener('click', () => this.handleCreatePost());
 
+        // Image upload in composer
+        this._composerImage = null;
+        const imageInput = this.$('composerImageInput');
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.size > 5 * 1024 * 1024) { ErrorHandler.showToast('Imagem muito grande (max 5MB)', 'warning'); imageInput.value = ''; return; }
+            this._composerImage = file;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                this.$('composerImageThumb').src = ev.target.result;
+                this.$('composerImagePreview').style.display = '';
+            };
+            reader.readAsDataURL(file);
+        });
+        this.$('composerImageRemove').addEventListener('click', () => {
+            this._composerImage = null;
+            imageInput.value = '';
+            this.$('composerImagePreview').style.display = 'none';
+        });
+
         loadMoreBtn.addEventListener('click', () => this.loadMorePosts());
+
+        // Infinite scroll — auto-load when "Load More" is visible
+        if ('IntersectionObserver' in window) {
+            this._feedObserver = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting && loadMoreBtn.style.display !== 'none') {
+                    this.loadMorePosts();
+                }
+            }, { rootMargin: '200px' });
+            this._feedObserver.observe(loadMoreBtn);
+        }
 
         // Notification bell
         this.$('notifBtn').addEventListener('click', (e) => {
@@ -1055,6 +1124,32 @@ class AcolheBemApp {
         }
     }
 
+    initRealtimeFeed() {
+        if (this._realtimeChannel) return;
+        const sb = window.supabaseClient;
+        if (!sb?.channel) return;
+        this._realtimeChannel = sb.channel('public:posts')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, (payload) => {
+                if (!payload.new || payload.new.user_id === this.currentUser?.id) return;
+                this._showNewPostBanner();
+            })
+            .subscribe();
+    }
+
+    _showNewPostBanner() {
+        if (document.querySelector('.new-posts-banner')) return;
+        const feedList = this.$('feedList');
+        if (!feedList) return;
+        const banner = document.createElement('button');
+        banner.className = 'new-posts-banner';
+        banner.textContent = 'Novas publicacoes disponiveis — clique para atualizar';
+        banner.addEventListener('click', () => {
+            banner.remove();
+            this.loadFeed();
+        });
+        feedList.parentElement.insertBefore(banner, feedList);
+    }
+
     async loadMorePosts() {
         if (this.feedLoading) return;
         this.feedLoading = true;
@@ -1093,8 +1188,23 @@ class AcolheBemApp {
 
         const anonAllowed = this._featureFlags?.anonymous_posts !== false;
         const isAnonymous = anonAllowed && this.$('anonCheckbox').checked;
-        const { post, error } = await Feed.createPost(content, this.currentTopicId, isAnonymous);
+
+        // Upload image if present
+        let imageUrl = null;
+        if (this._composerImage) {
+            postBtn.textContent = 'Enviando imagem...';
+            const sb = window.supabaseClient;
+            const ext = this._composerImage.name.split('.').pop();
+            const path = `posts/${this.currentUser.id}/${Date.now()}.${ext}`;
+            const { error: uploadErr } = await sb.storage.from('post-images').upload(path, this._composerImage);
+            if (uploadErr) { ErrorHandler.showToast('Erro ao enviar imagem: ' + uploadErr.message, 'error'); postBtn.disabled = false; postBtn.textContent = 'Publicar'; return; }
+            const { data: urlData } = sb.storage.from('post-images').getPublicUrl(path);
+            imageUrl = urlData?.publicUrl;
+        }
+
+        const { post, error } = await Feed.createPost(content, this.currentTopicId, isAnonymous, imageUrl);
         postBtn.disabled = false;
+        postBtn.textContent = 'Publicar';
 
         if (error) {
             ErrorHandler.showToast(error, 'error');
@@ -1104,6 +1214,9 @@ class AcolheBemApp {
         composerText.value = '';
         postBtn.disabled = true;
         this.$('anonCheckbox').checked = false;
+        this._composerImage = null;
+        this.$('composerImageInput').value = '';
+        this.$('composerImagePreview').style.display = 'none';
         this.$('feedEmpty').style.display = 'none';
 
         const feedList = this.$('feedList');
@@ -1135,7 +1248,7 @@ class AcolheBemApp {
             avatarHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
             nameHTML = `<span class="feed-post-name">${authorName}</span>`;
         } else if (isAnon && isOwn) {
-            authorName = (post.author?.name || 'Voce').split(' ')[0];
+            authorName = (post.author?.name || 'Você').split(' ')[0];
             authorPhoto = post.author?.photo_url;
             initial = authorName[0].toUpperCase();
             avatarHTML = authorPhoto
@@ -1150,7 +1263,7 @@ class AcolheBemApp {
                 ? `<img src="${authorPhoto}" alt="${authorName}">`
                 : `<span class="avatar-initial">${initial}</span>`;
             const psiBadge = post.author?.is_psi ? ' <span class="psi-badge">Psi.</span>' : '';
-            nameHTML = `<span class="feed-post-name">${this.escapeHTML(authorName)}</span>${psiBadge}`;
+            nameHTML = `<span class="feed-post-name feed-post-name-link" data-profile-user-id="${post.user_id}" data-profile-user-name="${this.escapeHTML(post.author?.name || authorName)}">${this.escapeHTML(authorName)}</span>${psiBadge}`;
         }
 
         const date = new Date(post.created_at).toLocaleDateString('pt-BR', {
@@ -1171,8 +1284,8 @@ class AcolheBemApp {
         const showFollowBtn = this.currentUser && !isAnon && !isOwn;
         const isFollowing = showFollowBtn && this._followingSet.has(post.user_id);
         const followBtnHTML = showFollowBtn
-            ? `<button class="follow-btn${isFollowing ? ' following' : ''}" data-user-id="${post.user_id}" title="${isFollowing ? 'Deixar de seguir' : 'Seguir'}">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+            ? `<button class="feed-action-btn follow-btn${isFollowing ? ' following' : ''}" data-user-id="${post.user_id}" title="${isFollowing ? 'Deixar de seguir' : 'Seguir'}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                     ${isFollowing
                         ? '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/>'
                         : '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>'}
@@ -1182,7 +1295,7 @@ class AcolheBemApp {
 
         // DM button: show for non-anon, non-own posts when logged in AND DM enabled
         const dmBtnHTML = (showFollowBtn && this._dmEnabled)
-            ? `<button class="dm-post-btn" data-user-id="${post.user_id}" data-user-name="${this.escapeHTML(authorName)}" title="Enviar mensagem">
+            ? `<button class="feed-action-btn dm-post-btn" data-user-id="${post.user_id}" data-user-name="${this.escapeHTML(authorName)}" title="Enviar mensagem">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                     <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
                 </svg>
@@ -1194,13 +1307,15 @@ class AcolheBemApp {
                 <div class="feed-post-avatar${isAnon && !isOwn ? ' feed-post-avatar-anon' : ''}">${avatarHTML}</div>
                 <div>
                     ${topicTag}
-                    <div>${nameHTML}${followBtnHTML}${dmBtnHTML}</div>
+                    <div>${nameHTML}</div>
                     <div class="feed-post-date">${date}</div>
                 </div>
+                ${isOwn ? '<button class="feed-post-edit" title="Editar">editar</button>' : ''}
                 ${isOwn ? '<button class="feed-post-delete" title="Excluir">excluir</button>' : (this.currentProfile?.is_admin ? '<button class="feed-post-delete admin-delete" title="Excluir (admin)">excluir</button>' : '')}
                 ${!isOwn && this.currentUser ? `<button class="feed-post-report" data-post-id="${post.id}" data-preview="${this.escapeHTML(post.content?.substring(0, 60) || '')}" title="Denunciar">denunciar</button>` : ''}
             </div>
-            <div class="feed-post-content">${this.escapeHTML(post.content)}</div>
+            <div class="feed-post-content">${this.escapeHTML(post.content)}${post.edited_at ? ' <span class="feed-edited-tag">(editado)</span>' : ''}</div>
+            ${post.image_url ? `<div class="feed-post-image"><img src="${post.image_url}" alt="Imagem do post" loading="lazy"></div>` : ''}
             <div class="feed-post-actions">
                 <div class="reaction-wrap">
                     <button class="feed-action-btn like-btn ${post.userReacted ? 'liked' : ''}" data-post-id="${post.id}">
@@ -1213,6 +1328,14 @@ class AcolheBemApp {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     <span class="reply-count">${post.replyCount}</span>
                 </button>
+                ${followBtnHTML}
+                ${dmBtnHTML}
+                ${this.currentUser ? `<button class="feed-action-btn bookmark-btn${this._isBookmarked(post.id) ? ' bookmarked' : ''}" data-post-id="${post.id}" title="${this._isBookmarked(post.id) ? 'Remover dos salvos' : 'Salvar'}">
+                    <svg viewBox="0 0 24 24" fill="${this._isBookmarked(post.id) ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                </button>` : ''}
+                <button class="feed-action-btn share-btn" data-post-id="${post.id}" title="Compartilhar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                </button>
                 <span class="feed-post-brand">AcolheBem.com.br <span>Plataforma de Acolhimento</span></span>
             </div>
             <div class="feed-replies" style="display:none">
@@ -1224,6 +1347,14 @@ class AcolheBemApp {
                 </div>` : ''}
             </div>
         `;
+
+        // Author name → profile click handler
+        const nameLink = card.querySelector('.feed-post-name-link');
+        if (nameLink) {
+            nameLink.addEventListener('click', () => {
+                this.showUserPosts(nameLink.dataset.profileUserId, nameLink.dataset.profileUserName);
+            });
+        }
 
         // Follow button handler
         const followBtn = card.querySelector('.follow-btn');
@@ -1272,6 +1403,38 @@ class AcolheBemApp {
             });
         }
 
+        // Edit handler
+        const editBtn = card.querySelector('.feed-post-edit');
+        if (editBtn) {
+            editBtn.addEventListener('click', () => {
+                const contentEl = card.querySelector('.feed-post-content');
+                const originalText = post.content;
+                contentEl.innerHTML = `<textarea class="feed-edit-textarea" maxlength="2000">${this.escapeHTML(originalText)}</textarea>
+                    <div class="feed-edit-actions">
+                        <button class="feed-edit-save">Salvar</button>
+                        <button class="feed-edit-cancel">Cancelar</button>
+                    </div>`;
+                const textarea = contentEl.querySelector('.feed-edit-textarea');
+                textarea.focus();
+                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+                contentEl.querySelector('.feed-edit-cancel').addEventListener('click', () => {
+                    contentEl.innerHTML = `${this.escapeHTML(originalText)}${post.edited_at ? ' <span class="feed-edited-tag">(editado)</span>' : ''}`;
+                });
+                contentEl.querySelector('.feed-edit-save').addEventListener('click', async () => {
+                    const newContent = textarea.value.trim();
+                    if (!newContent || newContent === originalText) {
+                        contentEl.innerHTML = `${this.escapeHTML(originalText)}${post.edited_at ? ' <span class="feed-edited-tag">(editado)</span>' : ''}`;
+                        return;
+                    }
+                    const { error } = await Feed.editPost(post.id, newContent);
+                    if (error) { ErrorHandler.showToast(error, 'error'); return; }
+                    post.content = newContent;
+                    post.edited_at = new Date().toISOString();
+                    contentEl.innerHTML = `${this.escapeHTML(newContent)} <span class="feed-edited-tag">(editado)</span>`;
+                });
+            });
+        }
+
         // Delete handler
         const deleteBtn = card.querySelector('.feed-post-delete');
         if (deleteBtn) {
@@ -1294,7 +1457,7 @@ class AcolheBemApp {
         const likeBtn = card.querySelector('.like-btn');
         likeBtn.addEventListener('click', async () => {
             if (!this.currentUser) { this.openOverlay('authModal'); return; }
-            const { liked, error } = await Feed.toggleReaction(post.id, 'like');
+            const { liked, switched, error } = await Feed.toggleReaction(post.id, 'like');
             if (error) return;
             const countEl = likeBtn.querySelector('.like-count');
             const iconEl = likeBtn.querySelector('.reaction-icon');
@@ -1302,7 +1465,7 @@ class AcolheBemApp {
             if (liked) {
                 likeBtn.classList.add('liked');
                 iconEl.textContent = '❤️';
-                countEl.textContent = count + 1;
+                if (!switched) countEl.textContent = count + 1;
             } else {
                 likeBtn.classList.remove('liked');
                 iconEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
@@ -1318,7 +1481,7 @@ class AcolheBemApp {
                     e.stopPropagation();
                     if (!this.currentUser) { this.openOverlay('authModal'); return; }
                     const rType = btn.dataset.type;
-                    const { liked, error } = await Feed.toggleReaction(post.id, rType);
+                    const { liked, switched, error } = await Feed.toggleReaction(post.id, rType);
                     if (error) return;
                     const countEl = likeBtn.querySelector('.like-count');
                     const iconEl = likeBtn.querySelector('.reaction-icon');
@@ -1326,7 +1489,7 @@ class AcolheBemApp {
                     if (liked) {
                         likeBtn.classList.add('liked');
                         iconEl.textContent = btn.textContent;
-                        countEl.textContent = count + 1;
+                        if (!switched) countEl.textContent = count + 1;
                     } else {
                         likeBtn.classList.remove('liked');
                         iconEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
@@ -1334,6 +1497,36 @@ class AcolheBemApp {
                     }
                     reactionPicker.classList.remove('show');
                 });
+            });
+        }
+
+        // Bookmark handler
+        const bookmarkBtn = card.querySelector('.bookmark-btn');
+        if (bookmarkBtn) {
+            bookmarkBtn.addEventListener('click', () => {
+                const isBookmarked = this._toggleBookmark(post.id);
+                bookmarkBtn.classList.toggle('bookmarked', isBookmarked);
+                bookmarkBtn.title = isBookmarked ? 'Remover dos salvos' : 'Salvar';
+                bookmarkBtn.querySelector('svg').setAttribute('fill', isBookmarked ? 'currentColor' : 'none');
+                ErrorHandler.showToast(isBookmarked ? 'Post salvo!' : 'Removido dos salvos', 'success');
+            });
+        }
+
+        // Share handler
+        const shareBtn = card.querySelector('.share-btn');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', async () => {
+                const shareData = {
+                    title: 'AcolheBem',
+                    text: post.content?.substring(0, 100) + (post.content?.length > 100 ? '...' : ''),
+                    url: window.location.origin + window.location.pathname,
+                };
+                if (navigator.share) {
+                    try { await navigator.share(shareData); } catch {}
+                } else {
+                    await navigator.clipboard.writeText(shareData.text + ' — ' + shareData.url);
+                    ErrorHandler.showToast('Link copiado!', 'success');
+                }
             });
         }
 
@@ -1415,7 +1608,7 @@ class AcolheBemApp {
             avatarHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
             displayName = name;
         } else if (isAnon && isOwn) {
-            name = (reply.author?.name || 'Voce').split(' ')[0];
+            name = (reply.author?.name || 'Você').split(' ')[0];
             photo = reply.author?.photo_url;
             initial = name[0].toUpperCase();
             avatarHTML = photo
@@ -1443,11 +1636,36 @@ class AcolheBemApp {
                 <div class="feed-reply-meta">
                     <span class="feed-reply-name">${displayName}</span>
                     <span class="feed-reply-date">${date}</span>
+                    ${isOwn ? '<button class="feed-reply-edit" title="Editar">editar</button>' : ''}
                     ${isOwn ? '<button class="feed-reply-delete" title="Excluir">excluir</button>' : ''}
                 </div>
-                <div class="feed-reply-text">${this.escapeHTML(reply.content)}</div>
+                <div class="feed-reply-text">${this.escapeHTML(reply.content)}${reply.edited_at ? ' <span class="feed-edited-tag">(editado)</span>' : ''}</div>
             </div>
         `;
+
+        const editReplyBtn = div.querySelector('.feed-reply-edit');
+        if (editReplyBtn) {
+            editReplyBtn.addEventListener('click', () => {
+                const textEl = div.querySelector('.feed-reply-text');
+                const original = reply.content;
+                textEl.innerHTML = `<input type="text" class="feed-reply-edit-input" value="${this.escapeHTML(original)}" maxlength="500">
+                    <div class="feed-edit-actions"><button class="feed-edit-save">Salvar</button><button class="feed-edit-cancel">Cancelar</button></div>`;
+                const input = textEl.querySelector('.feed-reply-edit-input');
+                input.focus();
+                textEl.querySelector('.feed-edit-cancel').addEventListener('click', () => {
+                    textEl.innerHTML = `${this.escapeHTML(original)}${reply.edited_at ? ' <span class="feed-edited-tag">(editado)</span>' : ''}`;
+                });
+                textEl.querySelector('.feed-edit-save').addEventListener('click', async () => {
+                    const newContent = input.value.trim();
+                    if (!newContent || newContent === original) { textEl.innerHTML = `${this.escapeHTML(original)}${reply.edited_at ? ' <span class="feed-edited-tag">(editado)</span>' : ''}`; return; }
+                    const { error } = await Feed.editReply(reply.id, newContent);
+                    if (error) { ErrorHandler.showToast(error, 'error'); return; }
+                    reply.content = newContent;
+                    reply.edited_at = new Date().toISOString();
+                    textEl.innerHTML = `${this.escapeHTML(newContent)} <span class="feed-edited-tag">(editado)</span>`;
+                });
+            });
+        }
 
         const deleteBtn = div.querySelector('.feed-reply-delete');
         if (deleteBtn) {
@@ -1464,6 +1682,23 @@ class AcolheBemApp {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
+    }
+
+    // ========================================
+    //  BOOKMARKS (localStorage)
+    // ========================================
+    _getBookmarks() {
+        try { return JSON.parse(localStorage.getItem('ab_bookmarks') || '[]'); } catch { return []; }
+    }
+    _isBookmarked(postId) {
+        return this._getBookmarks().includes(postId);
+    }
+    _toggleBookmark(postId) {
+        const bookmarks = this._getBookmarks();
+        const idx = bookmarks.indexOf(postId);
+        if (idx >= 0) { bookmarks.splice(idx, 1); } else { bookmarks.unshift(postId); }
+        localStorage.setItem('ab_bookmarks', JSON.stringify(bookmarks.slice(0, 100)));
+        return idx < 0;
     }
 
     // ========================================
@@ -1507,12 +1742,24 @@ class AcolheBemApp {
     async _enrichPsiProfile(profile) {
         try {
             const sb = window.supabaseClient;
-            const SUPABASE_URL = sb?.supabaseUrl || 'https://ynsxfifbbqhstlhuilzg.supabase.co';
+            const SUPABASE_URL = sb?.supabaseUrl;
+            if (!SUPABASE_URL) return null;
 
-            const res = await fetch(`${SUPABASE_URL}/functions/v1/psi-available?_t=${Date.now()}`, { cache: 'no-store' });
-            if (!res.ok) return null;
+            // Cache enrichment data for 10 minutes
+            const cacheKey = 'psi_enrich_cache';
+            const cached = sessionStorage.getItem(cacheKey);
+            let data;
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Date.now() - parsed.ts < 600000) { data = parsed.data; }
+            }
+            if (!data) {
+                const res = await fetch(`${SUPABASE_URL}/functions/v1/psi-available?_t=${Date.now()}`, { cache: 'no-store' });
+                if (!res.ok) return null;
+                data = await res.json();
+                sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
+            }
 
-            const data = await res.json();
             const psychologists = data.psychologists || [];
             if (psychologists.length === 0) return null;
 
@@ -1718,30 +1965,26 @@ class AcolheBemApp {
 
             if (profilesErr) throw profilesErr;
 
-            // Load posts per user (visible only) for follow logic and "ver post" button
+            // Load only user_id from visible posts (lightweight count)
             const { data: posts, error: postsErr } = await sb
                 .from('posts')
-                .select('id, user_id, content, created_at')
-                .eq('status', 'visible')
-                .order('created_at', { ascending: true });
+                .select('user_id')
+                .eq('status', 'visible');
 
             if (postsErr) throw postsErr;
 
             const countMap = {};
-            const firstPostMap = {};
+            const hasPostSet = new Set();
             if (posts) {
                 posts.forEach(p => {
                     countMap[p.user_id] = (countMap[p.user_id] || 0) + 1;
-                    // Keep only the first (oldest) post per user
-                    if (!firstPostMap[p.user_id]) {
-                        firstPostMap[p.user_id] = p;
-                    }
+                    hasPostSet.add(p.user_id);
                 });
             }
 
             this._membrosData = profiles || [];
             this._membrosPostCounts = countMap;
-            this._membrosFirstPost = firstPostMap;
+            this._membrosFirstPost = hasPostSet;
 
             loadingEl.style.display = 'none';
             this.renderMembros();
@@ -1810,7 +2053,7 @@ class AcolheBemApp {
 
             let actionHTML = '';
             if (userId && userId !== currentUserId) {
-                const hasPost = !!(this._membrosFirstPost && this._membrosFirstPost[userId]);
+                const hasPost = !!(this._membrosFirstPost && this._membrosFirstPost.has(userId));
                 if (hasPost) {
                     actionHTML += `<button class="membro-ver-post-btn" data-user-id="${userId}" data-user-name="${nameEsc}">Ver apresentacao</button>`;
                     if (this.currentUser) {
@@ -2748,14 +2991,76 @@ class AcolheBemApp {
         this.$('dmChatView').style.display = 'none';
         this.$('userPostsView').style.display = '';
 
-        this.$('userPostsTitle').textContent = `Posts de ${userName}`;
+        this.$('userPostsTitle').textContent = `Perfil de ${userName}`;
         const postsList = this.$('userPostsList');
         const empty = this.$('userPostsEmpty');
         postsList.innerHTML = '<div class="feed-loading">Carregando...</div>';
         empty.style.display = 'none';
 
-        const posts = await Feed.loadUserPosts(userId);
+        // Load profile info and posts in parallel
+        const sb = window.supabaseClient;
+        const [profileRes, counts, posts] = await Promise.all([
+            sb.from('profiles').select('id, name, photo_url, is_psi, city, state, crp, bio').eq('id', userId).single(),
+            Feed.getFollowCounts(userId),
+            Feed.loadUserPosts(userId),
+        ]);
+        const profile = profileRes.data;
         postsList.innerHTML = '';
+
+        // Build profile header
+        const isOwn = this.currentUser?.id === userId;
+        const isFollowing = this._followingSet.has(userId);
+        const initial = (profile?.name || userName || 'U').charAt(0).toUpperCase();
+        const avatarHTML = profile?.photo_url
+            ? `<img src="${profile.photo_url}" class="user-profile-avatar">`
+            : `<div class="user-profile-avatar user-profile-initial">${initial}</div>`;
+        const location = [profile?.city, profile?.state].filter(Boolean).join(', ');
+        const psiBadge = profile?.is_psi ? '<span class="psi-badge">Psi.</span>' : '';
+        const crpHTML = profile?.crp ? `<span class="user-profile-crp">CRP ${this.escapeHTML(profile.crp)}</span>` : '';
+        const bioHTML = profile?.bio ? `<p class="user-profile-bio">${this.escapeHTML(profile.bio)}</p>` : '';
+        const followBtnHTML = !isOwn && this.currentUser
+            ? `<button class="user-profile-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${userId}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`
+            : '';
+
+        const header = document.createElement('div');
+        header.className = 'user-profile-header';
+        header.innerHTML = `
+            ${avatarHTML}
+            <div class="user-profile-info">
+                <h3 class="user-profile-name">${this.escapeHTML(profile?.name || userName)}${psiBadge}</h3>
+                ${crpHTML}${bioHTML}
+                ${location ? `<span class="user-profile-location">${this.escapeHTML(location)}</span>` : ''}
+                <div class="user-profile-stats">
+                    <span><strong>${counts.followers}</strong> seguidores</span>
+                    <span><strong>${counts.following}</strong> seguindo</span>
+                    <span><strong>${posts.length}</strong> posts</span>
+                </div>
+            </div>
+            ${followBtnHTML}
+        `;
+
+        // Follow button handler
+        const followBtn = header.querySelector('.user-profile-follow-btn');
+        if (followBtn) {
+            followBtn.addEventListener('click', async () => {
+                followBtn.disabled = true;
+                const isNowFollowing = followBtn.classList.contains('following');
+                if (isNowFollowing) {
+                    await Feed.unfollowUser(userId);
+                    this._followingSet.delete(userId);
+                    followBtn.classList.remove('following');
+                    followBtn.textContent = 'Seguir';
+                } else {
+                    await Feed.followUser(userId);
+                    this._followingSet.add(userId);
+                    followBtn.classList.add('following');
+                    followBtn.textContent = 'Seguindo';
+                }
+                followBtn.disabled = false;
+            });
+        }
+
+        postsList.parentElement.insertBefore(header, postsList);
 
         if (posts.length === 0) {
             empty.style.display = '';
@@ -2766,6 +3071,9 @@ class AcolheBemApp {
     }
 
     hideUserPostsView() {
+        // Remove profile header if exists
+        const profileHeader = document.querySelector('.user-profile-header');
+        if (profileHeader) profileHeader.remove();
         this.$('userPostsView').style.display = 'none';
         // Go back to membros if navigated from there
         if (this._membrosBackTab) {
@@ -2803,7 +3111,7 @@ class AcolheBemApp {
         }
         // Check feature flag — admins can always create
         if (this._featureFlags?.member_topic_creation === false && !this.currentProfile?.is_admin) {
-            alert('A criacao de novos temas esta desabilitada no momento.');
+            ErrorHandler.showToast('A criação de novos temas está desabilitada no momento.', 'warning');
             return;
         }
         this.$('createTopicForm').reset();
@@ -3547,8 +3855,8 @@ class AcolheBemApp {
             const adminBadge = m.is_admin ? '<span class="admin-badge">Admin</span>' : '';
             const bannedTag = m.banned_at ? '<span class="admin-member-banned-tag">BANIDO</span>' : '';
             const banBtn = !m.is_admin ? (m.banned_at
-                ? `<button class="admin-member-ban-btn unban" onclick="app.unbanMember('${m.id}')">Desbanir</button>`
-                : `<button class="admin-member-ban-btn ban" onclick="app.banMember('${m.id}')">Banir</button>`) : '';
+                ? `<button class="admin-member-ban-btn unban" data-action="unban" data-id="${m.id}">Desbanir</button>`
+                : `<button class="admin-member-ban-btn ban" data-action="ban" data-id="${m.id}">Banir</button>`) : '';
 
             // Format WhatsApp number for link
             const wppNumber = (m.whatsapp || '').replace(/\D/g, '');
@@ -3569,6 +3877,16 @@ class AcolheBemApp {
                 </div>
             `;
             list.appendChild(item);
+        });
+
+        // Event delegation for ban/unban buttons
+        list.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            const id = btn.dataset.id;
+            if (action === 'ban') this.banMember(id);
+            else if (action === 'unban') this.unbanMember(id);
         });
     }
 
@@ -3683,12 +4001,19 @@ class AcolheBemApp {
                         <span class="admin-filter-type">${this.escapeHTML(f.filter_type)}</span>
                     </div>
                     <label class="admin-filter-toggle">
-                        <input type="checkbox" ${f.enabled ? 'checked' : ''} onchange="app.toggleAdminFilter('${f.id}', this.checked)">
+                        <input type="checkbox" ${f.enabled ? 'checked' : ''} data-filter-id="${f.id}">
                         <span class="admin-filter-track"><span class="admin-filter-thumb"></span></span>
                         <span class="admin-filter-status">${f.enabled ? 'Ativo' : 'Inativo'}</span>
                     </label>
                 `;
                 list.appendChild(item);
+            });
+
+            // Event delegation for filter toggles
+            list.addEventListener('change', (e) => {
+                const cb = e.target.closest('[data-filter-id]');
+                if (!cb) return;
+                this.toggleAdminFilter(cb.dataset.filterId, cb.checked);
             });
         } catch (e) {
             ErrorHandler.handle('app.loadAdminFilters', e, { silent: true });
@@ -3797,6 +4122,16 @@ class AcolheBemApp {
                 <div class="admin-reports-count">${pendingCount} pendente(s) de ${(data || []).length} total</div>
                 <div id="adminReportsList">${(data || []).map(r => this._buildReportItem(r)).join('')}</div>
             `;
+
+            // Event delegation for report actions
+            panel.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-report-action]');
+                if (!btn) return;
+                const action = btn.dataset.reportAction;
+                const id = btn.dataset.reportId;
+                if (action === 'dismiss') this.reviewReport(id, 'dismissed');
+                else this.reviewReport(id, 'reviewed', action);
+            });
         } catch (e) {
             ErrorHandler.handle('app.loadAdminReports', e, { silent: true });
             panel.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar denuncias.</div>';
@@ -3807,9 +4142,9 @@ class AcolheBemApp {
         const date = new Date(r.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
         const actions = r.status === 'pending' ? `
             <div class="admin-report-actions">
-                <button class="btn-hide" onclick="app.reviewReport('${r.id}','reviewed','hide_content')">Ocultar conteudo</button>
-                <button class="btn-ban" onclick="app.reviewReport('${r.id}','reviewed','ban_user')">Banir autor</button>
-                <button class="btn-dismiss" onclick="app.reviewReport('${r.id}','dismissed')">Ignorar</button>
+                <button class="btn-hide" data-report-action="hide_content" data-report-id="${r.id}">Ocultar conteudo</button>
+                <button class="btn-ban" data-report-action="ban_user" data-report-id="${r.id}">Banir autor</button>
+                <button class="btn-dismiss" data-report-action="dismiss" data-report-id="${r.id}">Ignorar</button>
             </div>` : `<div style="font-size:.72rem;color:#888">Status: ${r.status} ${r.admin_action ? '(' + r.admin_action + ')' : ''}</div>`;
         return `<div class="admin-report-item ${r.status}">
             <div class="admin-report-header">
@@ -3876,7 +4211,7 @@ class AcolheBemApp {
                     <input type="url" id="annLink" placeholder="Link (opcional) — ex: https://exemplo.com" maxlength="500">
                     <div class="form-row">
                         <select id="annType"><option value="info">Info</option><option value="warning">Alerta</option><option value="event">Evento</option><option value="celebration">Celebracao</option></select>
-                        <button class="btn-primary" onclick="app.createAnnouncement()" style="padding:8px 16px;font-size:.85rem">Publicar aviso</button>
+                        <button class="btn-primary" data-ann-action="create" style="padding:8px 16px;font-size:.85rem">Publicar aviso</button>
                     </div>
                 </div>
                 <div id="adminAnnList">
@@ -3888,12 +4223,22 @@ class AcolheBemApp {
                                 <span style="font-size:.7rem;color:#888;margin-left:8px">${a.type} | ${a.active ? 'Ativo' : 'Inativo'}</span>
                             </div>
                             <div style="display:flex;gap:6px">
-                                <button class="admin-member-ban-btn ${a.active ? 'ban' : 'unban'}" onclick="app.toggleAnnouncement('${a.id}',${!a.active})">${a.active ? 'Desativar' : 'Ativar'}</button>
-                                <button class="admin-member-ban-btn ban" onclick="app.deleteAnnouncement('${a.id}')">Excluir</button>
+                                <button class="admin-member-ban-btn ${a.active ? 'ban' : 'unban'}" data-ann-action="toggle" data-ann-id="${a.id}" data-ann-active="${!a.active}">${a.active ? 'Desativar' : 'Ativar'}</button>
+                                <button class="admin-member-ban-btn ban" data-ann-action="delete" data-ann-id="${a.id}">Excluir</button>
                             </div>
                         </div>
                     `).join('') || '<div style="color:#888;text-align:center;padding:12px">Nenhum aviso.</div>'}
                 </div>`;
+
+            // Event delegation for announcement actions
+            panel.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-ann-action]');
+                if (!btn) return;
+                const action = btn.dataset.annAction;
+                if (action === 'create') this.createAnnouncement();
+                else if (action === 'toggle') this.toggleAnnouncement(btn.dataset.annId, btn.dataset.annActive === 'true');
+                else if (action === 'delete') this.deleteAnnouncement(btn.dataset.annId);
+            });
         } catch (e) {
             ErrorHandler.handle('app.loadAdminAnnouncements', e, { silent: true });
             panel.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar avisos.</div>';
@@ -3949,7 +4294,7 @@ class AcolheBemApp {
                     <div class="featured-post-label">⭐ ${this.escapeHTML(current.label)}</div>
                     <div style="font-size:.85rem;color:#333;margin-bottom:6px">${this.escapeHTML(current.posts.content?.substring(0, 150))}...</div>
                     <div style="font-size:.75rem;color:#888">por ${this.escapeHTML(current.posts.profiles?.name || 'Anonimo')}</div>
-                    <button class="admin-member-ban-btn ban" style="margin-top:8px" onclick="app.removeFeaturedPost('${current.id}')">Remover destaque</button>
+                    <button class="admin-member-ban-btn ban" style="margin-top:8px" data-featured-action="remove" data-featured-id="${current.id}">Remover destaque</button>
                 </div>`;
             }
 
@@ -3962,9 +4307,17 @@ class AcolheBemApp {
                             <div style="font-size:.82rem;color:#333">${this.escapeHTML(p.content?.substring(0, 100))}...</div>
                             <div style="font-size:.72rem;color:#888">${this.escapeHTML(p.profiles?.name || 'Anonimo')}</div>
                         </div>
-                        <button class="admin-member-ban-btn unban" onclick="app.featurePost('${p.id}')">Destacar</button>
+                        <button class="admin-member-ban-btn unban" data-featured-action="feature" data-featured-id="${p.id}">Destacar</button>
                     </div>
                 `).join('')}</div>`;
+
+            // Event delegation for featured post actions
+            panel.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-featured-action]');
+                if (!btn) return;
+                if (btn.dataset.featuredAction === 'remove') this.removeFeaturedPost(btn.dataset.featuredId);
+                else if (btn.dataset.featuredAction === 'feature') this.featurePost(btn.dataset.featuredId);
+            });
         } catch (e) {
             ErrorHandler.handle('app.loadAdminFeatured', e, { silent: true });
             panel.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar destaque.</div>';
@@ -4291,6 +4644,22 @@ class AcolheBemApp {
             return true;
         }
         return false;
+    }
+
+    _showEmailVerifyBanner(email) {
+        if (document.querySelector('.email-verify-banner')) return;
+        const banner = document.createElement('div');
+        banner.className = 'email-verify-banner';
+        banner.innerHTML = `<span>Verifique seu email (${this.escapeHTML(email)}) para ativar todas as funcionalidades.</span>
+            <button class="email-verify-resend">Reenviar email</button>
+            <button class="email-verify-close">&times;</button>`;
+        banner.querySelector('.email-verify-close').addEventListener('click', () => banner.remove());
+        banner.querySelector('.email-verify-resend').addEventListener('click', async () => {
+            const sb = window.supabaseClient;
+            await sb.auth.resend({ type: 'signup', email });
+            banner.querySelector('.email-verify-resend').textContent = 'Enviado!';
+        });
+        document.body.prepend(banner);
     }
 
     // ========================================

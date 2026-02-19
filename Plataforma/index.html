@@ -34,12 +34,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=7">
+    <link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
-    <div id="app">
+    <a class="skip-link" href="#feedList">Pular para o conteudo</a>
+    <div id="app" role="application" aria-label="AcolheBem Plataforma">
         <!-- ===== CANVAS DE PARTICULAS ===== -->
-        <canvas id="particleCanvas"></canvas>
+        <canvas id="particleCanvas" aria-hidden="true"></canvas>
 
         <!-- ===== MODAL DE BOAS-VINDAS ===== -->
         <div id="welcomeModal" class="modal-overlay active">
@@ -84,8 +85,8 @@
                 <div class="topbar-brand">
                     <span class="topbar-logo">AcolheBem</span>
                 </div>
-                <nav class="topbar-tabs">
-                    <button class="tab-btn active" data-tab="women" id="tabWomen">
+                <nav class="topbar-tabs" role="tablist" aria-label="Navegacao principal">
+                    <button class="tab-btn active" data-tab="women" id="tabWomen" role="tab" aria-selected="true" aria-label="Espaco Feminino">
                         <svg class="tab-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
                             <circle cx="24" cy="16" r="10"/>
                             <line x1="24" y1="26" x2="24" y2="40"/>
@@ -94,7 +95,7 @@
                         <span class="tab-label-full">Feminino</span>
                         <span class="tab-label-short">Fem</span>
                     </button>
-                    <button class="tab-btn" data-tab="men" id="tabMen">
+                    <button class="tab-btn" data-tab="men" id="tabMen" role="tab" aria-selected="false" aria-label="Espaco Masculino">
                         <svg class="tab-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
                             <circle cx="19" cy="28" r="10"/>
                             <line x1="26" y1="21" x2="38" y2="9"/>
@@ -103,7 +104,7 @@
                         <span class="tab-label-full">Masculino</span>
                         <span class="tab-label-short">Masc</span>
                     </button>
-                    <button class="tab-btn" data-tab="community" id="tabCommunity">
+                    <button class="tab-btn" data-tab="community" id="tabCommunity" role="tab" aria-selected="false" aria-label="Comunidade">
                         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                             <circle cx="9" cy="7" r="4"/>
@@ -113,14 +114,14 @@
                         <span class="tab-label-full">Comunidade</span>
                         <span class="tab-label-short">Social</span>
                     </button>
-                    <button class="tab-btn" data-tab="psicologos" id="tabPsicologos">
+                    <button class="tab-btn" data-tab="psicologos" id="tabPsicologos" role="tab" aria-selected="false" aria-label="Psicologos">
                         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                             <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                         </svg>
                         <span class="tab-label-full">Psicologos</span>
                         <span class="tab-label-short">Psi</span>
                     </button>
-                    <button class="tab-btn" data-tab="membros" id="tabMembros">
+                    <button class="tab-btn" data-tab="membros" id="tabMembros" role="tab" aria-selected="false" aria-label="Membros">
                         <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                             <circle cx="9" cy="7" r="4"/>
@@ -173,6 +174,9 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                         </button>
                     </div>
+                    <button class="topbar-btn topbar-theme-btn" id="themeToggle" aria-label="Alternar tema" title="Modo escuro/claro">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="20" height="20"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    </button>
                     <button class="topbar-btn" id="indexBtn" aria-label="Índice">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                     </button>
@@ -412,10 +416,18 @@
                             </div>
                             <textarea id="composerText" placeholder="Compartilhe algo com a comunidade..." rows="3"></textarea>
                         </div>
+                        <div id="composerImagePreview" class="composer-image-preview" style="display:none">
+                            <img id="composerImageThumb">
+                            <button id="composerImageRemove" class="composer-image-remove" title="Remover imagem">&times;</button>
+                        </div>
                         <div class="feed-composer-footer">
                             <label class="anon-toggle">
                                 <input type="checkbox" id="anonCheckbox">
                                 <span>Publicar anonimamente</span>
+                            </label>
+                            <label class="composer-image-btn" title="Adicionar imagem">
+                                <input type="file" id="composerImageInput" accept="image/*" style="display:none">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
                             </label>
                             <button class="feed-post-btn" id="postBtn" disabled>Publicar</button>
                         </div>
@@ -926,17 +938,17 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://browser.sentry-cdn.com/8.45.0/bundle.tracing.min.js" crossorigin="anonymous"></script>
-    <script src="js/error-handler.js?v=7"></script>
-    <script src="js/validation.js?v=7"></script>
-    <script src="js/data.js?v=7"></script>
-    <script src="js/supabase.js?v=7"></script>
-    <script src="js/profile.js?v=7"></script>
-    <script src="js/auth.js?v=7"></script>
-    <script src="js/feed.js?v=7"></script>
-    <script src="js/search.js?v=7"></script>
-    <script src="js/notifications.js?v=7"></script>
-    <script src="js/messages.js?v=7"></script>
-    <script src="js/app.js?v=7"></script>
+    <script src="js/error-handler.js?v=9"></script>
+    <script src="js/validation.js?v=9"></script>
+    <script src="js/data.js?v=9"></script>
+    <script src="js/supabase.js?v=9"></script>
+    <script src="js/profile.js?v=9"></script>
+    <script src="js/auth.js?v=9"></script>
+    <script src="js/feed.js?v=9"></script>
+    <script src="js/search.js?v=9"></script>
+    <script src="js/notifications.js?v=9"></script>
+    <script src="js/messages.js?v=9"></script>
+    <script src="js/app.js?v=9"></script>
 
     <!-- PWA Install Banner -->
     <div id="pwaInstallBanner" class="pwa-install-banner" style="display:none">

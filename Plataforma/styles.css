@@ -50,7 +50,32 @@
     --dur-fast:  .2s;
     --dur-med:   .45s;
     --dur-slow:  .7s;
+    --dur-medium: .35s;
 }
+
+/* === DARK MODE === */
+[data-theme="dark"] {
+    --ink:        #e8e8f0;
+    --ink-70:     #c5c5d3;
+    --ink-60:     #a0a0b8;
+    --ink-40:     #8888a0;
+    --ink-20:     #555568;
+    --ink-10:     #2d2d42;
+    --ink-05:     #1f1f30;
+    --white:      #16162a;
+    --emerald-l:  rgba(47,111,100,.15);
+    --glass:      rgba(22,22,42,.72);
+    --glass-border: rgba(255,255,255,.08);
+    --shadow-1:   0 1px 2px rgba(0,0,0,.2);
+    --shadow-2:   0 4px 16px rgba(0,0,0,.3);
+    --shadow-3:   0 12px 40px rgba(0,0,0,.4);
+}
+[data-theme="dark"] body{background:#0d0d1a}
+[data-theme="dark"] .topbar{background:rgba(22,22,42,.92);border-color:var(--ink-10)}
+[data-theme="dark"] .feed-post{background:var(--white);border-color:var(--ink-10)}
+[data-theme="dark"] .modal-card{background:#1a1a2e;border-color:var(--ink-10)}
+[data-theme="dark"] .auth-input{background:var(--ink-05);border-color:var(--ink-10);color:var(--ink)}
+[data-theme="dark"] img{opacity:.92}
 
 /* === RESET === */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -61,6 +86,22 @@ button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
 a{color:inherit;text-decoration:none}
 img,svg{display:block}
 #app{min-height:100vh;min-height:100dvh;position:relative}
+
+/* === FOCUS-VISIBLE ACCESSIBILITY === */
+:focus-visible{
+    outline:2px solid var(--emerald);outline-offset:2px;
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible){outline:none}
+.skip-link{
+    position:absolute;top:-100%;left:16px;z-index:10001;
+    background:var(--emerald);color:white;padding:8px 16px;border-radius:4px;
+    font-size:.85rem;font-weight:600;
+}
+.skip-link:focus{top:8px}
 
 /* === PWA INSTALL BANNER === */
 .pwa-install-banner{
@@ -1435,12 +1476,114 @@ img,svg{display:block}
 }
 .feed-post-name{font-size:.88rem;font-weight:600;color:var(--ink)}
 .feed-post-date{font-size:.72rem;color:var(--ink-20)}
-.feed-post-delete{
-    margin-left:auto;font-size:.72rem;color:var(--ink-20);
+.feed-post-edit,.feed-post-delete{
+    font-size:.72rem;color:var(--ink-20);
     background:none;border:none;cursor:pointer;padding:4px 8px;
     border-radius:6px;transition:all var(--dur-fast);
 }
+.feed-post-edit{margin-left:auto}
+.feed-post-edit:hover{background:var(--ink-05);color:var(--emerald)}
 .feed-post-delete:hover{background:var(--ink-05);color:#e53935}
+.feed-edited-tag{font-size:.72rem;color:var(--ink-20);font-style:italic}
+.feed-edit-textarea{
+    width:100%;min-height:80px;padding:10px;font-size:.88rem;
+    border:1px solid var(--ink-10);border-radius:8px;resize:vertical;
+    font-family:inherit;line-height:1.5;
+}
+.feed-edit-actions{display:flex;gap:8px;margin-top:8px}
+.feed-edit-save,.feed-edit-cancel{
+    padding:6px 14px;font-size:.8rem;border-radius:6px;border:none;cursor:pointer;
+}
+.feed-edit-save{background:var(--emerald);color:white}
+.feed-edit-save:hover{background:var(--emerald-d)}
+.feed-edit-cancel{background:var(--ink-05);color:var(--ink-40)}
+.feed-edit-cancel:hover{background:var(--ink-10)}
+.feed-reply-edit,.feed-reply-delete{
+    font-size:.68rem;color:var(--ink-20);background:none;border:none;
+    cursor:pointer;padding:2px 6px;border-radius:4px;
+}
+.feed-reply-edit:hover{color:var(--emerald)}
+.feed-reply-delete:hover{color:#e53935}
+.feed-reply-edit-input{
+    width:100%;padding:6px 10px;font-size:.82rem;
+    border:1px solid var(--ink-10);border-radius:6px;font-family:inherit;
+}
+.new-posts-banner{
+    display:block;width:100%;padding:10px;margin-bottom:12px;
+    background:var(--emerald-l);color:var(--emerald);border:1px solid var(--emerald);
+    border-radius:8px;font-size:.82rem;font-weight:600;
+    cursor:pointer;text-align:center;
+    animation:fadeIn var(--dur-medium) ease;
+}
+.new-posts-banner:hover{background:var(--emerald);color:white}
+.email-verify-banner{
+    display:flex;align-items:center;gap:10px;padding:10px 16px;
+    background:#fff3cd;color:#856404;font-size:.82rem;
+    border-bottom:1px solid #ffc107;position:sticky;top:0;z-index:1000;
+    flex-wrap:wrap;
+}
+.email-verify-resend{
+    background:#ffc107;color:#856404;border:none;padding:4px 12px;
+    border-radius:4px;cursor:pointer;font-size:.78rem;font-weight:600;
+}
+.email-verify-close{
+    margin-left:auto;background:none;border:none;font-size:1.1rem;
+    color:#856404;cursor:pointer;padding:0 4px;
+}
+.feed-post-image{margin-bottom:12px}
+.feed-post-image img{width:100%;max-height:400px;object-fit:cover;border-radius:8px}
+.composer-image-preview{
+    position:relative;display:inline-block;margin:8px 0 0 0;
+}
+.composer-image-preview img{max-height:120px;border-radius:8px;display:block}
+.composer-image-remove{
+    position:absolute;top:4px;right:4px;width:24px;height:24px;
+    border-radius:50%;background:rgba(0,0,0,.6);color:white;
+    border:none;cursor:pointer;font-size:1rem;line-height:1;
+    display:flex;align-items:center;justify-content:center;
+}
+.composer-image-btn{
+    display:flex;align-items:center;cursor:pointer;color:var(--ink-30);
+    padding:4px;border-radius:6px;transition:all var(--dur-fast);
+}
+.composer-image-btn:hover{color:var(--emerald);background:var(--emerald-l)}
+.feed-post-name-link{cursor:pointer}
+.feed-post-name-link:hover{color:var(--emerald);text-decoration:underline}
+.user-profile-header{
+    display:flex;align-items:flex-start;gap:16px;padding:20px 16px;
+    background:var(--white);border-radius:12px;border:1px solid var(--ink-05);
+    margin-bottom:16px;position:relative;
+}
+.user-profile-avatar{
+    width:64px;height:64px;border-radius:50%;object-fit:cover;flex-shrink:0;
+}
+.user-profile-initial{
+    display:flex;align-items:center;justify-content:center;
+    background:var(--ink-10);color:var(--ink-70);font-weight:700;font-size:1.4rem;
+}
+.user-profile-info{flex:1;min-width:0}
+.user-profile-name{font-size:1.1rem;font-weight:700;margin:0 0 4px}
+.user-profile-crp{font-size:.75rem;color:var(--emerald);display:block;margin-bottom:4px}
+.user-profile-bio{font-size:.82rem;color:var(--ink-40);margin:4px 0 8px;line-height:1.4}
+.user-profile-location{font-size:.75rem;color:var(--ink-30);display:block;margin-bottom:8px}
+.user-profile-stats{display:flex;gap:16px;font-size:.78rem;color:var(--ink-40)}
+.user-profile-stats strong{color:var(--ink);font-weight:700}
+.user-profile-follow-btn{
+    padding:8px 20px;border-radius:20px;font-size:.82rem;font-weight:600;
+    border:1.5px solid var(--emerald);background:var(--emerald);color:white;
+    cursor:pointer;transition:all var(--dur-fast);flex-shrink:0;
+}
+.user-profile-follow-btn.following{
+    background:transparent;color:var(--emerald);
+}
+.user-profile-follow-btn.following:hover{border-color:#c0392b;color:#c0392b}
+.composer-char-counter{
+    display:block;text-align:right;font-size:.7rem;color:var(--ink-20);
+    margin-top:2px;padding-right:4px;
+}
+.composer-char-counter.near-limit{color:#e67700}
+.composer-char-counter.at-limit{color:#e53935;font-weight:600}
+.bookmark-btn.bookmarked{color:var(--emerald)}
 .feed-post-content{
     font-size:.92rem;line-height:1.6;color:var(--ink-70);
     margin-bottom:14px;white-space:pre-wrap;
@@ -1769,14 +1912,14 @@ img,svg{display:block}
    FOLLOW FEATURE
    ============================================================ */
 
-/* Follow button inline in post header */
+/* Follow button — standalone (following list, etc.) */
 .follow-btn{
     display:inline-flex;align-items:center;justify-content:center;
-    width:24px;height:24px;padding:0;margin-left:6px;
+    width:28px;height:28px;padding:0;
     border:1.5px solid var(--ink-20);border-radius:50%;
     background:transparent;color:var(--ink-40);
     cursor:pointer;transition:all var(--dur-fast);
-    vertical-align:middle;flex-shrink:0;
+    flex-shrink:0;
 }
 .follow-btn:hover{
     border-color:var(--emerald);color:var(--emerald);
@@ -1791,6 +1934,23 @@ img,svg{display:block}
 }
 .follow-btn:disabled{opacity:.5;cursor:default}
 .follow-btn svg{width:14px;height:14px;flex-shrink:0}
+
+/* Follow button inside post actions bar — override to pill style */
+.feed-post-actions .follow-btn{
+    width:auto;height:auto;padding:6px 10px;
+    border:none;border-radius:100px;
+    background:none;color:var(--ink-40);
+}
+.feed-post-actions .follow-btn:hover{
+    border:none;color:var(--emerald);background:var(--emerald-l);
+}
+.feed-post-actions .follow-btn.following{
+    border:none;color:var(--emerald);background:none;
+}
+.feed-post-actions .follow-btn.following:hover{
+    border:none;color:#c0392b;background:rgba(197,60,43,.08);
+}
+.feed-post-actions .follow-btn svg{width:18px;height:18px}
 
 /* Community header actions group */
 .community-header-actions{
@@ -2704,16 +2864,11 @@ img,svg{display:block}
     animation:notifPop .3s var(--ease-spring);
 }
 
-/* DM Message button on post cards */
-.dm-post-btn{
-    display:inline-flex;align-items:center;justify-content:center;
-    width:28px;height:28px;border-radius:var(--r-full);
-    background:none;border:none;cursor:pointer;
-    color:var(--ink-40);transition:all var(--dur-fast);
-    margin-left:4px;vertical-align:middle;
+/* DM Message button in post actions bar */
+.feed-post-actions .dm-post-btn{
+    color:var(--ink-40);
 }
-.dm-post-btn:hover{color:var(--emerald);background:var(--emerald-l)}
-.dm-post-btn svg{width:16px;height:16px}
+.feed-post-actions .dm-post-btn:hover{color:var(--emerald);background:var(--emerald-l)}
 
 /* ===== DM LIST VIEW ===== */
 .dm-list-view{
