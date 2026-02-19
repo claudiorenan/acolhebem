@@ -1643,18 +1643,23 @@ class AcolheBemApp {
                 this._membrosPsiData = [];
             }
 
-            // Load psi profiles from DB to map CRP -> user_id for follow
+            // Load psi profiles from DB to map to API psychologists for follow
             const { data: psiProfiles, error: psiProfilesErr } = await sb
                 .from('profiles')
-                .select('id, crp')
+                .select('id, name, crp')
                 .eq('is_psi', true);
 
+            this._membrosPsiProfileMap = {};
             if (!psiProfilesErr && psiProfiles) {
                 this._membrosPsiCrpMap = {};
+                this._membrosPsiNameMap = {};
                 psiProfiles.forEach(p => {
                     if (p.crp) {
                         const normalizedCrp = p.crp.replace(/\D/g, '');
                         this._membrosPsiCrpMap[normalizedCrp] = p.id;
+                    }
+                    if (p.name) {
+                        this._membrosPsiNameMap[p.name.trim().toLowerCase()] = p.id;
                     }
                 });
             }
@@ -1746,23 +1751,31 @@ class AcolheBemApp {
                 ? '<span style="color:#25d366;font-size:.7rem">● Disponivel</span>'
                 : '<span style="color:var(--ink-40);font-size:.7rem">● Ativo</span>';
 
-            // Match API psi to DB profile via CRP for follow/post buttons
-            let actionHTML = '';
+            // Match API psi to DB profile via CRP or name for follow/post buttons
+            let userId = null;
             if (psi.crp) {
                 const normalizedCrp = psi.crp.replace(/\D/g, '');
-                const userId = crpMap[normalizedCrp];
-                if (userId && userId !== currentUserId) {
-                    const hasPost = !!(this._membrosFirstPost && this._membrosFirstPost[userId]);
-                    if (hasPost) {
-                        actionHTML += `<button class="membro-ver-post-btn" data-user-id="${userId}" data-user-name="${nameEsc}">Ver post</button>`;
-                        if (this.currentUser) {
-                            const isFollowing = this._followingSet.has(userId);
-                            actionHTML += `<button class="membro-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${userId}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`;
-                        }
-                    } else {
-                        actionHTML = '<span class="membro-no-follow">Sem apresentacao</span>';
+                userId = crpMap[normalizedCrp] || null;
+            }
+            if (!userId && psi.name) {
+                const nameMap = this._membrosPsiNameMap || {};
+                userId = nameMap[psi.name.trim().toLowerCase()] || null;
+            }
+
+            let actionHTML = '';
+            if (userId && userId !== currentUserId) {
+                const hasPost = !!(this._membrosFirstPost && this._membrosFirstPost[userId]);
+                if (hasPost) {
+                    actionHTML += `<button class="membro-ver-post-btn" data-user-id="${userId}" data-user-name="${nameEsc}">Ver apresentacao</button>`;
+                    if (this.currentUser) {
+                        const isFollowing = this._followingSet.has(userId);
+                        actionHTML += `<button class="membro-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${userId}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`;
                     }
+                } else {
+                    actionHTML = '<span class="membro-no-follow">Sem apresentacao</span>';
                 }
+            } else if (!userId) {
+                actionHTML = '<span class="membro-no-follow">Sem conta na plataforma</span>';
             }
 
             return `<div class="membro-card">
@@ -1835,7 +1848,7 @@ class AcolheBemApp {
             let actionHTML = '';
             if (hasPosts) {
                 const nameEsc = this.escapeHTML(m.name || 'Anonimo');
-                actionHTML += `<button class="membro-ver-post-btn" data-user-id="${m.id}" data-user-name="${nameEsc}">Ver post</button>`;
+                actionHTML += `<button class="membro-ver-post-btn" data-user-id="${m.id}" data-user-name="${nameEsc}">Ver apresentacao</button>`;
                 if (this.currentUser) {
                     actionHTML += `<button class="membro-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${m.id}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`;
                 }
