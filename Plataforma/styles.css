@@ -3740,6 +3740,9 @@ select:focus:not(:focus-visible){outline:none}
     padding:4px 6px;border-radius:8px;transition:transform .15s,background .15s;
     line-height:1;
 }
+.atv-reaction-picker::before{
+    content:'';position:absolute;bottom:-10px;left:0;right:0;height:10px;
+}
 .atv-reaction-picker .reaction-pick-btn:hover{transform:scale(1.3);background:#f0f0f0}
 
 /* Enhanced Feed: Replies section */
