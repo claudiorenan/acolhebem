@@ -190,8 +190,8 @@ const ACTIVITY_TYPES = [
 // ============================================================
 class AcolheBemApp {
     constructor() {
-        this.gender = 'women'; // default tab
-        this.currentTab = 'women'; // tracks active view: women | men | community | psicologos
+        this.gender = 'women'; // default gender
+        this.currentTab = 'principal'; // tracks active view: principal | community | psicologos | atividade
         this.data = TOPICS_DATA[this.gender];
         this.currentUser = null;
         this.currentProfile = null;
@@ -248,6 +248,11 @@ class AcolheBemApp {
             btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
         });
 
+        // gender picker
+        this.$$('.gender-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.switchGender(btn.dataset.gender));
+        });
+
         // index
         this.$('indexBtn').addEventListener('click', () => this.toggleIndex(true));
         this.$('fiClose').addEventListener('click', () => this.toggleIndex(false));
@@ -274,7 +279,7 @@ class AcolheBemApp {
         window.addEventListener('resize', () => {
             clearTimeout(this._resizeTimer);
             this._resizeTimer = setTimeout(() => {
-                if (this.data && this.currentTab !== 'community' && this.currentTab !== 'psicologos') this.renderHeroViz();
+                if (this.data && this.currentTab === 'principal') this.renderHeroViz();
             }, 200);
         });
 
@@ -315,7 +320,7 @@ class AcolheBemApp {
             localStorage.setItem('ab_theme', isDark ? 'light' : 'dark');
         });
 
-        // load default tab (women)
+        // load default tab (principal)
         this.applyTheme();
         this.buildContent();
         this.renderHeroViz();
@@ -395,6 +400,7 @@ class AcolheBemApp {
             video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M15.6 11.6L22 7v10l-6.4-4.6"/><rect x="2" y="7" width="14" height="10" rx="2"/></svg>',
             instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5"/></svg>',
             youtube: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>',
+            whatsapp: '<svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>',
             link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
         };
         return icons[icon] || icons.link;
@@ -1787,8 +1793,8 @@ class AcolheBemApp {
         const btn = document.querySelector(`.modal-gender-btn[data-gender="${gender}"]`);
         if (btn) btn.classList.add('selected');
 
-        // switch to chosen tab
-        this.switchTab(gender);
+        // switch gender within principal tab
+        this.switchGender(gender);
 
         // close modal after brief visual feedback
         setTimeout(() => this.closeModal(), 300);
@@ -1888,33 +1894,24 @@ class AcolheBemApp {
 
         if (tab === 'community') {
             this.hidePsicologos();
-            this.hideMembros();
             this.hideAtividade();
             this.showCommunity();
         } else if (tab === 'psicologos') {
             this.hideCommunity();
-            this.hideMembros();
             this.hideAtividade();
             this.showPsicologos();
-        } else if (tab === 'membros') {
-            this.hideCommunity();
-            this.hidePsicologos();
-            this.hideAtividade();
-            this.showMembros();
         } else if (tab === 'atividade') {
             this.hideCommunity();
             this.hidePsicologos();
-            this.hideMembros();
             this.showAtividade();
         } else {
+            // tab === 'principal'
             this.hideCommunity();
             this.hidePsicologos();
-            this.hideMembros();
             this.hideAtividade();
-            if (this.gender !== tab) {
-                this.gender = tab;
-                this.data = TOPICS_DATA[tab];
-            }
+            this.$('mainBody').style.display = '';
+            const picker = this.$('genderPicker');
+            if (picker) picker.style.display = '';
             this.applyTheme();
             this.buildContent();
             this.renderHeroViz();
@@ -1923,11 +1920,25 @@ class AcolheBemApp {
         }
     }
 
+    switchGender(gender) {
+        if (this.gender === gender) return;
+        this.gender = gender;
+        this.data = TOPICS_DATA[gender];
+        this.$$('.gender-btn').forEach(b => b.classList.toggle('active', b.dataset.gender === gender));
+        this.applyTheme();
+        this.buildContent();
+        this.renderHeroViz();
+        this.revealCards();
+        this._loadMonthlyPostCounts();
+    }
+
     showCommunity() {
         this.$('mainBody').style.display = 'none';
         this.$('membrosSection').style.display = 'none';
         this.$('atividadeSection').style.display = 'none';
         this.$('communitySection').style.display = '';
+        const picker = this.$('genderPicker');
+        if (picker) picker.style.display = 'none';
         this.applyTheme();
 
         if (this.currentTopicId) {
@@ -1951,6 +1962,8 @@ class AcolheBemApp {
         this.$('membrosSection').style.display = 'none';
         this.$('atividadeSection').style.display = 'none';
         this.$('psicologosSection').style.display = '';
+        const picker = this.$('genderPicker');
+        if (picker) picker.style.display = 'none';
         this.applyTheme();
 
         if (!this.psiAvailableFetched) {
@@ -1971,6 +1984,8 @@ class AcolheBemApp {
         this.$('psicologosSection').style.display = 'none';
         this.$('atividadeSection').style.display = 'none';
         this.$('membrosSection').style.display = '';
+        const picker = this.$('genderPicker');
+        if (picker) picker.style.display = 'none';
         this.applyTheme();
 
         if (!this._membrosData) {
@@ -2014,14 +2029,32 @@ class AcolheBemApp {
         this.$('psicologosSection').style.display = 'none';
         this.$('membrosSection').style.display = 'none';
         this.$('atividadeSection').style.display = '';
+        const picker = this.$('genderPicker');
+        if (picker) picker.style.display = 'none';
         this.applyTheme();
         this._setupAtividadeListeners();
         this._renderActivityTypePills();
         this.loadAtividadeData();
+        this._renderAtvWhatsAppBanner();
     }
 
     hideAtividade() {
         this.$('atividadeSection').style.display = 'none';
+    }
+
+    _renderAtvWhatsAppBanner() {
+        const banner = this.$('atvWhatsAppBanner');
+        if (!banner) return;
+        const link = (this._siteLinks || []).find(l => l.id === 'memovimentar' && l.enabled);
+        if (link) {
+            const a = this.$('atvWhatsAppLink');
+            if (a) a.href = link.url;
+            const label = this.$('atvWhatsAppLabel');
+            if (label) label.textContent = link.label;
+            banner.style.display = '';
+        } else {
+            banner.style.display = 'none';
+        }
     }
 
     _setupAtividadeListeners() {
@@ -3339,8 +3372,10 @@ class AcolheBemApp {
     hideSearch() {
         this.$('searchView').style.display = 'none';
         Search.clearCache();
-        // Restore the current tab view
-        this.switchTab(this.currentTab);
+        // Restore the current tab view (bypass guard by resetting currentTab)
+        const tab = this.currentTab;
+        this.currentTab = null;
+        this.switchTab(tab);
     }
 
     renderSearchResults(results, query) {
@@ -4270,6 +4305,8 @@ class AcolheBemApp {
         this.$('psicologosSection').style.display = 'none';
         this.$('atividadeSection').style.display = 'none';
         this.$('adminSection').style.display = '';
+        const picker = this.$('genderPicker');
+        if (picker) picker.style.display = 'none';
         this._adminPostsOffset = 0;
         this.loadAdminDashboard();
     }
@@ -4286,6 +4323,8 @@ class AcolheBemApp {
             this.showAtividade();
         } else {
             this.$('mainBody').style.display = '';
+            const picker = this.$('genderPicker');
+            if (picker) picker.style.display = '';
         }
     }
 
