@@ -54,8 +54,8 @@ class ParticleSystem {
         this.loop();
     }
     resize() {
-        this.w = this.canvas.width = window.innerWidth;
-        this.h = this.canvas.height = window.innerHeight;
+        this.w = this.canvas.width = Math.max(window.innerWidth, 1);
+        this.h = this.canvas.height = Math.max(window.innerHeight, 1);
     }
     spawn(n) {
         for (let i = 0; i < n; i++) {
@@ -4284,7 +4284,7 @@ class AcolheBemApp {
         panel.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando...</div>';
         try {
             const sb = window.supabaseClient;
-            const { data: current } = await sb.from('featured_posts').select('*, posts(content, user_id, profiles:posts_user_id_fkey(name))').eq('active', true).order('created_at', { ascending: false }).limit(1).single();
+            const { data: current } = await sb.from('featured_posts').select('*, posts(content, user_id, profiles:posts_user_id_fkey(name))').eq('active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
 
             const { data: topPosts } = await sb.from('posts').select('id, content, user_id, profiles:posts_user_id_fkey(name)').eq('status', 'visible').order('created_at', { ascending: false }).limit(10);
 
@@ -4584,7 +4584,7 @@ class AcolheBemApp {
         try {
             const sb = window.supabaseClient;
             if (!sb) return;
-            const { data } = await sb.from('featured_posts').select('*, posts(content, user_id, profiles:posts_user_id_fkey(name))').eq('active', true).order('created_at', { ascending: false }).limit(1).single();
+            const { data } = await sb.from('featured_posts').select('*, posts(content, user_id, profiles:posts_user_id_fkey(name))').eq('active', true).order('created_at', { ascending: false }).limit(1).maybeSingle();
             const wrap = this.$('featuredPostWrap');
             if (!data?.posts) { wrap.style.display = 'none'; return; }
             wrap.style.display = '';
