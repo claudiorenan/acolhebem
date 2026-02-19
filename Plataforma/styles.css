@@ -3298,6 +3298,16 @@ img,svg{display:block}
     background:#c0392b;border-color:#c0392b;
 }
 .membro-follow-btn:disabled{opacity:.5;cursor:default}
+.membro-actions{display:flex;flex-direction:column;gap:4px;align-items:flex-end;flex-shrink:0}
+.membro-ver-post-btn{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:5px 12px;border-radius:20px;
+    border:1.5px solid var(--ink-20);background:transparent;
+    color:var(--ink-60);font-size:.72rem;font-weight:600;
+    cursor:pointer;transition:all var(--dur-fast);
+    white-space:nowrap;font-family:var(--f-body);
+}
+.membro-ver-post-btn:hover{border-color:var(--emerald);color:var(--emerald);background:var(--emerald-l)}
 .tab-btn[data-tab="membros"].active{color:var(--emerald)}
 
 @media(max-width:600px){

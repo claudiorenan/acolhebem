@@ -1667,23 +1667,30 @@ class AcolheBemApp {
 
             if (profilesErr) throw profilesErr;
 
-            // Load post counts per user (visible posts only) for follow button logic
+            // Load posts per user (visible only) for follow logic and "ver post" button
             const { data: posts, error: postsErr } = await sb
                 .from('posts')
-                .select('user_id')
-                .eq('status', 'visible');
+                .select('id, user_id, content, created_at')
+                .eq('status', 'visible')
+                .order('created_at', { ascending: true });
 
             if (postsErr) throw postsErr;
 
             const countMap = {};
+            const firstPostMap = {};
             if (posts) {
                 posts.forEach(p => {
                     countMap[p.user_id] = (countMap[p.user_id] || 0) + 1;
+                    // Keep only the first (oldest) post per user
+                    if (!firstPostMap[p.user_id]) {
+                        firstPostMap[p.user_id] = p;
+                    }
                 });
             }
 
             this._membrosData = profiles || [];
             this._membrosPostCounts = countMap;
+            this._membrosFirstPost = firstPostMap;
 
             loadingEl.style.display = 'none';
             this.renderMembros();
@@ -1739,14 +1746,22 @@ class AcolheBemApp {
                 ? '<span style="color:#25d366;font-size:.7rem">● Disponivel</span>'
                 : '<span style="color:var(--ink-40);font-size:.7rem">● Ativo</span>';
 
-            // Match API psi to DB profile via CRP for follow button
+            // Match API psi to DB profile via CRP for follow/post buttons
             let actionHTML = '';
-            if (this.currentUser && psi.crp) {
+            if (psi.crp) {
                 const normalizedCrp = psi.crp.replace(/\D/g, '');
                 const userId = crpMap[normalizedCrp];
                 if (userId && userId !== currentUserId) {
-                    const isFollowing = this._followingSet.has(userId);
-                    actionHTML = `<button class="membro-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${userId}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`;
+                    const hasPost = !!(this._membrosFirstPost && this._membrosFirstPost[userId]);
+                    if (hasPost) {
+                        actionHTML += `<button class="membro-ver-post-btn" data-user-id="${userId}" data-user-name="${nameEsc}">Ver post</button>`;
+                        if (this.currentUser) {
+                            const isFollowing = this._followingSet.has(userId);
+                            actionHTML += `<button class="membro-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${userId}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`;
+                        }
+                    } else {
+                        actionHTML = '<span class="membro-no-follow">Sem apresentacao</span>';
+                    }
                 }
             }
 
@@ -1758,40 +1773,23 @@ class AcolheBemApp {
                     ${abordHTML}
                     ${statusDot}
                 </div>
-                ${actionHTML}
+                <div class="membro-actions">${actionHTML}</div>
             </div>`;
         }).join('');
 
-        // Attach follow/unfollow handlers for psi cards
-        listEl.querySelectorAll('.membro-follow-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                btn.disabled = true;
-                const targetUserId = btn.dataset.userId;
-                const isCurrentlyFollowing = btn.classList.contains('following');
-
-                if (isCurrentlyFollowing) {
-                    const { error } = await Feed.unfollowUser(targetUserId);
-                    if (!error) {
-                        this._followingSet.delete(targetUserId);
-                        btn.classList.remove('following');
-                        btn.textContent = 'Seguir';
-                    }
-                } else {
-                    const { error } = await Feed.followUser(targetUserId);
-                    if (!error) {
-                        this._followingSet.add(targetUserId);
-                        btn.classList.add('following');
-                        btn.textContent = 'Seguindo';
-                        const actorName = this.currentProfile?.name || 'Alguem';
-                        Notifications.notifyFollow(targetUserId, actorName);
-                        this._updateOnboarding('followed_someone');
-                        this._awardBadge('first_follow');
-                    }
-                }
-                btn.disabled = false;
+        // Attach "Ver post" handlers
+        listEl.querySelectorAll('.membro-ver-post-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const userId = btn.dataset.userId;
+                const userName = btn.dataset.userName;
+                this._membrosBackTab = true;
+                this.hideMembros();
+                this.$('communitySection').style.display = '';
+                this.showUserPosts(userId, userName);
             });
         });
+
+        this._attachMembrosFollowHandlers(listEl);
     }
 
     _renderMembrosUsers(listEl, search) {
@@ -1834,20 +1832,37 @@ class AcolheBemApp {
             const nameHTML = `<span class="membro-name">${this.escapeHTML(m.name || 'Anonimo')}</span>`;
             const metaHTML = location ? `<span class="membro-meta">${this.escapeHTML(location)}</span>` : '';
 
-            let actionHTML;
-            if (!this.currentUser) {
-                actionHTML = '';
-            } else if (hasPosts) {
-                actionHTML = `<button class="membro-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${m.id}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`;
+            let actionHTML = '';
+            if (hasPosts) {
+                const nameEsc = this.escapeHTML(m.name || 'Anonimo');
+                actionHTML += `<button class="membro-ver-post-btn" data-user-id="${m.id}" data-user-name="${nameEsc}">Ver post</button>`;
+                if (this.currentUser) {
+                    actionHTML += `<button class="membro-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${m.id}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`;
+                }
             } else {
-                actionHTML = '<span class="membro-no-follow">Sem publicacoes</span>';
+                actionHTML = '<span class="membro-no-follow">Sem apresentacao</span>';
             }
 
-            return `<div class="membro-card">${avatarHTML}<div class="membro-info">${nameHTML}${metaHTML}</div>${actionHTML}</div>`;
+            return `<div class="membro-card">${avatarHTML}<div class="membro-info">${nameHTML}${metaHTML}</div><div class="membro-actions">${actionHTML}</div></div>`;
         }).join('');
 
-        // Attach follow/unfollow handlers
-        listEl.querySelectorAll('.membro-follow-btn').forEach(btn => {
+        // Attach "Ver post" handlers
+        listEl.querySelectorAll('.membro-ver-post-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const userId = btn.dataset.userId;
+                const userName = btn.dataset.userName;
+                this._membrosBackTab = true;
+                this.hideMembros();
+                this.$('communitySection').style.display = '';
+                this.showUserPosts(userId, userName);
+            });
+        });
+
+        this._attachMembrosFollowHandlers(listEl);
+    }
+
+    _attachMembrosFollowHandlers(container) {
+        container.querySelectorAll('.membro-follow-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 btn.disabled = true;
@@ -2693,6 +2708,13 @@ class AcolheBemApp {
 
     hideUserPostsView() {
         this.$('userPostsView').style.display = 'none';
+        // Go back to membros if navigated from there
+        if (this._membrosBackTab) {
+            this._membrosBackTab = false;
+            this.$('communitySection').style.display = 'none';
+            this.showMembros();
+            return;
+        }
         // Go back to following view
         this.$('followingView').style.display = '';
     }
