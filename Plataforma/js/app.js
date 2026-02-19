@@ -3480,6 +3480,7 @@ class AcolheBemApp {
                 <div class="admin-announcement-form">
                     <input type="text" id="annTitle" placeholder="Titulo do aviso" maxlength="200">
                     <textarea id="annBody" placeholder="Corpo do aviso (opcional)" maxlength="1000"></textarea>
+                    <input type="url" id="annLink" placeholder="Link (opcional) — ex: https://exemplo.com" maxlength="500">
                     <div class="form-row">
                         <select id="annType"><option value="info">Info</option><option value="warning">Alerta</option><option value="event">Evento</option><option value="celebration">Celebracao</option></select>
                         <button class="btn-primary" onclick="app.createAnnouncement()" style="padding:8px 16px;font-size:.85rem">Publicar aviso</button>
@@ -3490,6 +3491,7 @@ class AcolheBemApp {
                         <div class="admin-announcement-item ${a.active ? '' : 'inactive'}">
                             <div>
                                 <strong>${this.escapeHTML(a.title)}</strong>
+                                ${a.link_url ? `<a href="${this.escapeHTML(a.link_url)}" target="_blank" rel="noopener" style="font-size:.7rem;margin-left:6px;color:#1971c2">🔗 link</a>` : ''}
                                 <span style="font-size:.7rem;color:#888;margin-left:8px">${a.type} | ${a.active ? 'Ativo' : 'Inativo'}</span>
                             </div>
                             <div style="display:flex;gap:6px">
@@ -3508,11 +3510,12 @@ class AcolheBemApp {
     async createAnnouncement() {
         const title = this.$('annTitle')?.value?.trim();
         const body = this.$('annBody')?.value?.trim();
+        const linkUrl = this.$('annLink')?.value?.trim();
         const type = this.$('annType')?.value || 'info';
         if (!title) return;
         try {
             const sb = window.supabaseClient;
-            await sb.from('announcements').insert({ title, body: body || null, type, created_by: this.currentUser.id });
+            await sb.from('announcements').insert({ title, body: body || null, type, link_url: linkUrl || null, created_by: this.currentUser.id });
             this.loadAdminAnnouncements();
             this._loadAnnouncements();
         } catch (e) { ErrorHandler.handle('app.createAnnouncement', e); }
@@ -3655,6 +3658,13 @@ class AcolheBemApp {
             this.$('announcementIcon').textContent = icons[ann.type] || '📢';
             this.$('announcementTitle').textContent = ann.title;
             this.$('announcementBody').textContent = ann.body || '';
+            const linkEl = this.$('announcementLink');
+            if (ann.link_url) {
+                linkEl.href = ann.link_url;
+                linkEl.style.display = '';
+            } else {
+                linkEl.style.display = 'none';
+            }
             banner.style.display = '';
         } catch { /* silent */ }
     }
