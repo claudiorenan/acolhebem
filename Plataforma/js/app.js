@@ -3643,9 +3643,11 @@ class AcolheBemApp {
         try {
             const sb = window.supabaseClient;
             if (!sb) return;
+            const banner = this.$('announcementBanner');
+            // Avisos sao exibidos apenas para psicologos
+            if (!this.currentProfile?.is_psi) { banner.style.display = 'none'; return; }
             const { data } = await sb.from('announcements').select('*').eq('active', true).order('created_at', { ascending: false }).limit(1);
             const ann = data?.[0];
-            const banner = this.$('announcementBanner');
             if (!ann) { banner.style.display = 'none'; return; }
 
             const icons = { info: '📢', warning: '⚠️', event: '📅', celebration: '🎉' };
