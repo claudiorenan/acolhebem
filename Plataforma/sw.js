@@ -3,15 +3,13 @@
  * Cache-first for static assets, Network-first for API
  */
 
-const CACHE_VERSION = 'acolhebem-v2';
+const CACHE_VERSION = 'acolhebem-v3';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/styles.css',
-  '/js/app.js',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
