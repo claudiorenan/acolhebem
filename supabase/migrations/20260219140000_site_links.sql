@@ -16,19 +16,27 @@ CREATE TABLE IF NOT EXISTS site_links (
 ALTER TABLE site_links ENABLE ROW LEVEL SECURITY;
 
 -- SELECT público (qualquer visitante pode ver)
-CREATE POLICY "site_links_select_public"
-    ON site_links FOR SELECT
-    USING (true);
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'site_links_select_public') THEN
+        CREATE POLICY "site_links_select_public"
+            ON site_links FOR SELECT
+            USING (true);
+    END IF;
+END $$;
 
 -- UPDATE/INSERT/DELETE apenas admins
-CREATE POLICY "site_links_admin_modify"
-    ON site_links FOR ALL
-    USING (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true)
-    )
-    WITH CHECK (
-        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true)
-    );
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'site_links_admin_modify') THEN
+        CREATE POLICY "site_links_admin_modify"
+            ON site_links FOR ALL
+            USING (
+                EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true)
+            )
+            WITH CHECK (
+                EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = true)
+            );
+    END IF;
+END $$;
 
 -- Seed data
 INSERT INTO site_links (id, label, url, icon, enabled, sort_order) VALUES
