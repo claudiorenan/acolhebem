@@ -385,7 +385,11 @@ class AcolheBemApp {
             this._authReady = true;
             if (session?.user) {
                 this.currentUser = session.user;
-                const profile = await Profile.getProfile(session.user.id);
+                let profile = await Profile.getProfile(session.user.id);
+                // Auto-enrich psi profile with API data on first login
+                if (profile?.is_psi && !profile.crp) {
+                    profile = await this._enrichPsiProfile(profile) || profile;
+                }
                 this.currentProfile = profile;
                 this.updateTopbarUser();
                 // Init notifications
@@ -1495,6 +1499,48 @@ class AcolheBemApp {
             modal.classList.remove('active', 'closing');
             modal.style.display = 'none';
         }, 400);
+    }
+
+    // ========================================
+    //  PSI PROFILE AUTO-ENRICH
+    // ========================================
+    async _enrichPsiProfile(profile) {
+        try {
+            const sb = window.supabaseClient;
+            const SUPABASE_URL = sb?.supabaseUrl || 'https://ynsxfifbbqhstlhuilzg.supabase.co';
+
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/psi-available?_t=${Date.now()}`, { cache: 'no-store' });
+            if (!res.ok) return null;
+
+            const data = await res.json();
+            const psychologists = data.psychologists || [];
+            if (psychologists.length === 0) return null;
+
+            // Match by name (API doesn't return email)
+            const profileName = profile.name?.trim().toLowerCase();
+            let match = null;
+            if (profileName) {
+                match = psychologists.find(p => p.name && p.name.trim().toLowerCase() === profileName);
+            }
+            if (!match) return null;
+
+            // Build update payload — only fill in missing fields
+            const updates = {};
+            if (!profile.crp && match.crp) updates.crp = match.crp;
+            if (!profile.photo_url && match.photo) updates.photo_url = match.photo;
+
+            if (Object.keys(updates).length === 0) return null;
+
+            const { data: updated } = await Profile.updateProfile(updates);
+            if (updated) {
+                console.log('[AcolheBem] Psi profile enriched with API data');
+                return updated;
+            }
+            return null;
+        } catch (err) {
+            console.warn('[AcolheBem] Psi enrich failed:', err);
+            return null;
+        }
     }
 
     // ========================================
