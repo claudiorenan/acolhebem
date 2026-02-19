@@ -3700,8 +3700,8 @@ select:focus:not(:focus-visible){outline:none}
 
 /* Enhanced Feed: Branding */
 .atv-feed-brand{
-    font-size:.62rem;color:var(--ink-20);margin-top:6px;
-    font-weight:500;letter-spacing:.01em;
+    font-size:.62rem;color:var(--emerald);margin-top:6px;
+    font-weight:600;letter-spacing:.01em;
 }
 
 /* Enhanced Feed: Actions bar */
