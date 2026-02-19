@@ -425,6 +425,9 @@ class AcolheBemApp {
         this._authReady = false;
         Auth.onAuthChange(async (event, session) => {
             this._authReady = true;
+            if (event === 'SIGNED_UP' || (event === 'SIGNED_IN' && this._justSignedUp)) {
+                this._isNewSignup = true;
+            }
             if (session?.user) {
                 this.currentUser = session.user;
                 let profile = await Profile.getProfile(session.user.id);
@@ -459,6 +462,7 @@ class AcolheBemApp {
                 this._loadDigest();
                 this._processReferralCode();
                 this._checkOnboarding();
+                this._maybeShowWelcomeModal();
             } else {
                 this.currentUser = null;
                 this.currentProfile = null;
@@ -477,6 +481,7 @@ class AcolheBemApp {
                 this.$('streakBar').style.display = 'none';
                 // Clear Sentry user context
                 ErrorHandler.clearSentryUser();
+                this._maybeShowWelcomeModal();
             }
         });
 
@@ -497,6 +502,7 @@ class AcolheBemApp {
                     this._loadFollowingCache();
                     this.$('followingBtn').style.display = '';
                 }
+                this._maybeShowWelcomeModal();
             }
         }, 2000);
     }
@@ -723,6 +729,10 @@ class AcolheBemApp {
             errEl.textContent = error;
             errEl.classList.add('visible');
         } else {
+            // Allow welcome modal to show on first login after signup
+            this._justSignedUp = true;
+            localStorage.removeItem('ab_modal_seen');
+
             // Capture email before resetting form
             const signupEmail = this.$('signupEmail').value;
             this.$('signupForm').reset();
@@ -1748,12 +1758,21 @@ class AcolheBemApp {
     }
 
     closeModal() {
+        localStorage.setItem('ab_modal_seen', '1');
         const modal = this.$('welcomeModal');
         modal.classList.add('closing');
         setTimeout(() => {
             modal.classList.remove('active', 'closing');
             modal.style.display = 'none';
         }, 400);
+    }
+
+    _maybeShowWelcomeModal() {
+        if (localStorage.getItem('ab_modal_seen')) return;
+        if (this.currentUser && !this._isNewSignup) return;
+        const modal = this.$('welcomeModal');
+        modal.style.display = '';
+        requestAnimationFrame(() => modal.classList.add('active'));
     }
 
     // ========================================
