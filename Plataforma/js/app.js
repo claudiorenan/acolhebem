@@ -2921,25 +2921,25 @@ class AcolheBemApp {
         const typeObj = ACTIVITY_TYPES.find(t => t.key === item.activity_type);
         const typeLine = (typeObj ? typeObj.emoji + ' ' + typeObj.label.toUpperCase() : item.activity_type.toUpperCase())
             + '  ·  ' + item.duration_minutes + ' min';
-        ctx.font = `bold 32px ${FONT}`;
+        ctx.font = `bold 38px ${FONT}`;
         ctx.fillStyle = '#047857';
-        ctx.fillText(typeLine, cx, cy + 32);
-        cy += 72;
+        ctx.fillText(typeLine, cx, cy + 38);
+        cy += 84;
 
         // Separator line
-        ctx.strokeStyle = '#d1d5db';
+        ctx.strokeStyle = '#047857';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(cx + maxW, cy);
         ctx.stroke();
-        cy += ratio === '9:16' ? 56 : 40;
+        cy += ratio === '9:16' ? 60 : 44;
 
         // Motivation message (word-wrap)
-        const msgFontSize = ratio === '9:16' ? 40 : 36;
-        const msgLineHeight = ratio === '9:16' ? 54 : 48;
+        const msgFontSize = ratio === '9:16' ? 46 : 42;
+        const msgLineHeight = ratio === '9:16' ? 62 : 56;
         ctx.font = `${msgFontSize}px ${FONT}`;
-        ctx.fillStyle = '#1f2937';
+        ctx.fillStyle = '#1a1a2e';
         const msgText = item.motivation_message ? ('\u201C' + item.motivation_message + '\u201D') : '';
         if (msgText) {
             const msgLines = this._wrapCanvasText(ctx, msgText, maxW);
@@ -2953,32 +2953,31 @@ class AcolheBemApp {
         // Author name + city
         const name = (profile.name || 'Anonimo').split(' ')[0];
         const cityText = profile.city ? ' · ' + profile.city : '';
-        ctx.font = `600 28px ${FONT}`;
-        ctx.fillStyle = '#374151';
-        ctx.fillText('\u2014 ' + name + cityText, cx, cy + 28);
-        cy += ratio === '9:16' ? 72 : 56;
+        ctx.font = `bold 32px ${FONT}`;
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillText('\u2014 ' + name + cityText, cx, cy + 32);
+        cy += ratio === '9:16' ? 76 : 60;
 
         // Motivational quote (random, italic)
         const quote = this._motivationalQuotes[Math.floor(Math.random() * this._motivationalQuotes.length)];
-        const quoteFontSize = ratio === '9:16' ? 28 : 24;
+        const quoteFontSize = ratio === '9:16' ? 32 : 28;
         ctx.font = `italic ${quoteFontSize}px ${FONT}`;
         ctx.fillStyle = '#047857';
         const quoteLines = this._wrapCanvasText(ctx, quote, maxW);
         quoteLines.forEach(line => {
             ctx.fillText(line, cx, cy + quoteFontSize);
-            cy += quoteFontSize + 8;
+            cy += quoteFontSize + 10;
         });
 
-        // CTA and branding at bottom of card
+        // Branding at bottom of card
         const brandY = cardY + cardH - pad;
         ctx.textAlign = 'center';
 
-        // Branding
-        ctx.font = `bold 26px ${FONT}`;
+        ctx.font = `bold 30px ${FONT}`;
         ctx.fillStyle = '#1a4d44';
-        ctx.fillText('AcolheBem.com.br', W / 2, brandY - 14);
-        ctx.font = `400 20px ${FONT}`;
-        ctx.fillStyle = '#374151';
+        ctx.fillText('AcolheBem.com.br', W / 2, brandY - 16);
+        ctx.font = `500 22px ${FONT}`;
+        ctx.fillStyle = '#1a4d44';
         ctx.fillText('Plataforma de Acolhimento e Movimento', W / 2, brandY + 16);
         ctx.textAlign = 'left';
     }
