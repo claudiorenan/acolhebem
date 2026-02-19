@@ -325,6 +325,7 @@ class AcolheBemApp {
         this._loadAnnouncements();
         this._loadFeaturedPost();
         this._loadFeatureFlags();
+        this._loadSiteLinks();
     }
 
     _initEngagementUI() {
@@ -361,6 +362,42 @@ class AcolheBemApp {
             const anonToggle = document.querySelector('.anon-toggle');
             if (anonToggle) anonToggle.style.display = this._featureFlags.anonymous_posts !== false ? '' : 'none';
         } catch { /* silent */ }
+    }
+
+    // ========================================
+    //  SITE LINKS (community buttons)
+    // ========================================
+    async _loadSiteLinks() {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb) return;
+            const { data } = await sb.from('site_links').select('*').order('sort_order');
+            this._siteLinks = data || [];
+            this._renderCommunityLinks();
+        } catch { /* silent */ }
+    }
+
+    _renderCommunityLinks() {
+        const container = this.$('communityLinks');
+        if (!container) return;
+        const links = (this._siteLinks || []).filter(l => l.enabled);
+        container.innerHTML = links.map(l => `
+            <a href="${l.url}" target="_blank" rel="noopener noreferrer"
+               class="ugc-btn community-link-btn--${l.icon}">
+                ${this._getSiteLinkIcon(l.icon)}
+                ${l.label}
+            </a>
+        `).join('');
+    }
+
+    _getSiteLinkIcon(icon) {
+        const icons = {
+            video: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M15.6 11.6L22 7v10l-6.4-4.6"/><rect x="2" y="7" width="14" height="10" rx="2"/></svg>',
+            instagram: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5"/></svg>',
+            youtube: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.1c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg>',
+            link: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
+        };
+        return icons[icon] || icons.link;
     }
 
     // ========================================
@@ -4208,7 +4245,7 @@ class AcolheBemApp {
         this.$('adminBtn').addEventListener('click', () => this.showAdminPanel());
         this.$('adminBackBtn').addEventListener('click', () => this.hideAdminPanel());
 
-        const adminPanels = ['dashboard','posts','reports','members','announcements','topics','featured','psi','filters','config'];
+        const adminPanels = ['dashboard','posts','reports','members','announcements','topics','featured','psi','filters','config','links'];
         this.$$('.admin-tab').forEach(btn => {
             btn.addEventListener('click', () => {
                 const tab = btn.dataset.adminTab;
@@ -4218,7 +4255,7 @@ class AcolheBemApp {
                     const el = this.$('admin' + p.charAt(0).toUpperCase() + p.slice(1) + 'Panel');
                     if (el) el.style.display = p === tab ? '' : 'none';
                 });
-                const loaders = { dashboard:'loadAdminDashboard', members:'loadAdminMembers', topics:'loadAdminTopics', psi:'loadAdminPsi', filters:'loadAdminFilters', config:'loadAdminConfig', reports:'loadAdminReports', announcements:'loadAdminAnnouncements', featured:'loadAdminFeatured' };
+                const loaders = { dashboard:'loadAdminDashboard', members:'loadAdminMembers', topics:'loadAdminTopics', psi:'loadAdminPsi', filters:'loadAdminFilters', config:'loadAdminConfig', reports:'loadAdminReports', announcements:'loadAdminAnnouncements', featured:'loadAdminFeatured', links:'loadAdminLinks' };
                 if (loaders[tab] && this[loaders[tab]]) this[loaders[tab]]();
             });
         });
@@ -5274,6 +5311,70 @@ class AcolheBemApp {
             ErrorHandler.handle('app.toggleFeatureFlag', e);
             if (checkbox) checkbox.checked = !enabled;
             if (statusEl) statusEl.textContent = !enabled ? 'Ativo' : 'Inativo';
+        }
+    }
+
+    // ========================================
+    //  ADMIN SITE LINKS
+    // ========================================
+
+    async loadAdminLinks() {
+        const list = this.$('adminLinksList');
+        if (!list) return;
+        try {
+            const sb = window.supabaseClient;
+            const { data } = await sb.from('site_links').select('*').order('sort_order');
+            if (!data || !data.length) { list.innerHTML = '<p style="color:var(--ink-40);font-size:.85rem">Nenhum link cadastrado.</p>'; return; }
+            list.innerHTML = data.map(l => `
+                <div class="admin-link-item ${l.enabled ? '' : 'admin-link-disabled'}" id="adminLink_${l.id}">
+                    <div class="admin-link-fields">
+                        <div class="admin-link-row">
+                            <label>Label</label>
+                            <input type="text" id="adminLinkLabel_${l.id}" value="${l.label}" class="admin-link-input">
+                        </div>
+                        <div class="admin-link-row">
+                            <label>URL</label>
+                            <input type="text" id="adminLinkUrl_${l.id}" value="${l.url}" class="admin-link-input">
+                        </div>
+                    </div>
+                    <div class="admin-link-actions">
+                        <button class="admin-link-save-btn" onclick="app._saveAdminLink('${l.id}')">Salvar</button>
+                        <label class="admin-filter-toggle">
+                            <input type="checkbox" ${l.enabled ? 'checked' : ''} onchange="app._toggleAdminLink('${l.id}', this.checked)">
+                            <span class="admin-filter-track"><span class="admin-filter-thumb"></span></span>
+                            <span class="admin-filter-status">${l.enabled ? 'Ativo' : 'Inativo'}</span>
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            ErrorHandler.handle('app.loadAdminLinks', e);
+            list.innerHTML = '<p style="color:red;font-size:.85rem">Erro ao carregar links.</p>';
+        }
+    }
+
+    async _saveAdminLink(id) {
+        try {
+            const label = this.$('adminLinkLabel_' + id)?.value?.trim();
+            const url = this.$('adminLinkUrl_' + id)?.value?.trim();
+            if (!label || !url) return;
+            const sb = window.supabaseClient;
+            await sb.from('site_links').update({ label, url, updated_at: new Date().toISOString() }).eq('id', id);
+            await this._loadSiteLinks();
+            this.loadAdminLinks();
+        } catch (e) {
+            ErrorHandler.handle('app._saveAdminLink', e);
+        }
+    }
+
+    async _toggleAdminLink(id, enabled) {
+        try {
+            const sb = window.supabaseClient;
+            await sb.from('site_links').update({ enabled, updated_at: new Date().toISOString() }).eq('id', id);
+            await this._loadSiteLinks();
+            this.loadAdminLinks();
+        } catch (e) {
+            ErrorHandler.handle('app._toggleAdminLink', e);
         }
     }
 

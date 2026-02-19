@@ -1077,6 +1077,16 @@ select:focus:not(:focus-visible){outline:none}
     box-shadow:0 2px 8px rgba(47,111,100,.2);
 }
 .ugc-btn svg{width:16px;height:16px;flex-shrink:0}
+
+/* Community links container */
+.community-links{display:flex;flex-wrap:wrap;gap:6px}
+
+/* Social button colors */
+.community-link-btn--instagram{background:#E1306C}
+.community-link-btn--instagram:hover{background:#c1175e;box-shadow:0 2px 8px rgba(225,48,108,.3)}
+.community-link-btn--youtube{background:#FF0000}
+.community-link-btn--youtube:hover{background:#cc0000;box-shadow:0 2px 8px rgba(255,0,0,.3)}
+
 .create-topic-btn{
     padding:8px 18px;border-radius:100px;
     background:var(--emerald);color:var(--white);
@@ -1868,6 +1878,8 @@ select:focus:not(:focus-visible){outline:none}
     .community-header-actions{gap:6px}
     .community-title{font-size:1.2rem}
     .ugc-btn{font-size:.72rem;padding:6px 10px}
+    .admin-link-item{flex-direction:column;align-items:stretch}
+    .admin-link-actions{flex-direction:row;justify-content:space-between}
     .following-header-btn{font-size:.72rem;padding:6px 10px}
     .following-tab{padding:8px 12px;font-size:.78rem}
     .following-user-card{padding:10px 12px;gap:10px}
@@ -3345,6 +3357,33 @@ select:focus:not(:focus-visible){outline:none}
     border-radius:8px;margin-bottom:6px;font-size:.82rem;
 }
 .admin-announcement-item.inactive{opacity:.5}
+
+/* ==========================================================
+   ADMIN SITE LINKS
+   ========================================================== */
+.admin-link-item{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--white);border-radius:var(--r-sm);
+    padding:14px 16px;border:1px solid var(--ink-10);gap:12px;
+    transition:opacity var(--dur-fast);
+}
+.admin-link-disabled{opacity:.5}
+.admin-link-fields{flex:1;display:flex;flex-direction:column;gap:6px}
+.admin-link-row{display:flex;align-items:center;gap:8px}
+.admin-link-row label{font-size:.75rem;font-weight:600;color:var(--ink-40);min-width:38px}
+.admin-link-input{
+    flex:1;padding:6px 10px;border:1px solid var(--ink-10);border-radius:6px;
+    font-size:.82rem;font-family:var(--f-body);color:var(--ink);
+}
+.admin-link-input:focus{outline:none;border-color:var(--emerald)}
+.admin-link-actions{display:flex;flex-direction:column;align-items:center;gap:8px}
+.admin-link-save-btn{
+    padding:5px 14px;border:none;border-radius:6px;
+    background:var(--emerald);color:var(--white);
+    font-size:.78rem;font-weight:600;cursor:pointer;
+    transition:background var(--dur-fast);
+}
+.admin-link-save-btn:hover{background:var(--emerald-d)}
 
 /* ==========================================================
    ADMIN BAN
