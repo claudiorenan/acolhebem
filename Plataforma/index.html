@@ -1045,17 +1045,33 @@
     <div id="sharePreviewModal" class="auth-overlay">
         <div class="share-preview-card">
             <button class="auth-close" id="sharePreviewClose">&times;</button>
-            <h3>Compartilhar Atividade</h3>
+            <div class="share-preview-header">
+                <div class="share-preview-emojis">&#x1F3C3; &#x1F6B6; &#x1F9D8; &#x1F3CB;&#xFE0F; &#x1F6B4; &#x1F483;</div>
+                <h3>Compartilhar Atividade</h3>
+                <p class="share-preview-subtitle">Escolha o formato e inspire a comunidade!</p>
+            </div>
             <div class="share-format-tabs">
-                <button class="share-format-btn active" data-ratio="1:1">1:1 Feed</button>
-                <button class="share-format-btn" data-ratio="9:16">9:16 Stories</button>
+                <button class="share-format-btn active" data-ratio="1:1">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                    <span>1:1 Feed</span>
+                </button>
+                <button class="share-format-btn" data-ratio="9:16">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="5" y="2" width="14" height="20" rx="2"/></svg>
+                    <span>9:16 Stories</span>
+                </button>
             </div>
             <div class="share-preview-container">
                 <canvas id="sharePreviewCanvas"></canvas>
             </div>
             <div class="share-preview-actions">
-                <button id="shareDownloadBtn" class="share-action-primary">Baixar imagem</button>
-                <button id="shareNativeBtn" class="share-action-secondary">Compartilhar</button>
+                <button id="shareDownloadBtn" class="share-action-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Baixar imagem
+                </button>
+                <button id="shareNativeBtn" class="share-action-secondary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                    Compartilhar
+                </button>
             </div>
         </div>
     </div>
