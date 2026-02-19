@@ -1632,15 +1632,26 @@ class AcolheBemApp {
 
         try {
             const sb = window.supabaseClient;
+            const SUPABASE_URL = sb?.supabaseUrl || 'https://ynsxfifbbqhstlhuilzg.supabase.co';
 
-            // Load all profiles
+            // Load psychologists from the API (same as Psicologos tab)
+            const psiRes = await fetch(`${SUPABASE_URL}/functions/v1/psi-available?_t=${Date.now()}`, { cache: 'no-store' });
+            if (psiRes.ok) {
+                const psiData = await psiRes.json();
+                this._membrosPsiData = psiData.psychologists || [];
+            } else {
+                this._membrosPsiData = [];
+            }
+
+            // Load member profiles (non-psi) from Supabase
             const { data: profiles, error: profilesErr } = await sb
                 .from('profiles')
-                .select('id, name, photo_url, is_psi, city, state, crp');
+                .select('id, name, photo_url, is_psi, city, state')
+                .eq('is_psi', false);
 
             if (profilesErr) throw profilesErr;
 
-            // Load post counts per user (visible posts only)
+            // Load post counts per user (visible posts only) for follow button logic
             const { data: posts, error: postsErr } = await sb
                 .from('posts')
                 .select('user_id')
@@ -1648,7 +1659,6 @@ class AcolheBemApp {
 
             if (postsErr) throw postsErr;
 
-            // Build post count map
             const countMap = {};
             if (posts) {
                 posts.forEach(p => {
@@ -1670,19 +1680,76 @@ class AcolheBemApp {
 
     renderMembros() {
         const listEl = this.$('membrosList');
-        if (!this._membrosData) return;
-
-        const currentUserId = this.currentUser?.id;
         const filter = this._membrosFilter;
         const search = this._membrosSearchTerm;
 
-        let filtered = this._membrosData.filter(m => {
-            // Exclude self
+        if (filter === 'psi') {
+            this._renderMembrosPsi(listEl, search);
+        } else {
+            this._renderMembrosUsers(listEl, search);
+        }
+    }
+
+    _renderMembrosPsi(listEl, search) {
+        let psiList = this._membrosPsiData || [];
+
+        if (search) {
+            psiList = psiList.filter(p => p.name && p.name.toLowerCase().includes(search));
+        }
+
+        if (psiList.length === 0) {
+            listEl.innerHTML = '<div class="psi-state"><p>Nenhum psicologo encontrado.</p></div>';
+            return;
+        }
+
+        listEl.innerHTML = psiList.map(psi => {
+            const nameEsc = this.escapeHTML(psi.name);
+            const profileUrl = this.escapeHTML(psi.profileUrl || '');
+            const wppMsg = encodeURIComponent(`Oi Psi. ${psi.name}, encontrei o seu perfil na plataforma AcolheBem do Cadê Meu Psi. Gostaria de saber mais sobre o atendimento.`);
+            const wppUrl = psi.whatsappNumber
+                ? `https://wa.me/${psi.whatsappNumber}?text=${wppMsg}`
+                : (psi.whatsappUrl || profileUrl);
+
+            // Avatar
+            let avatarHTML;
+            if (psi.photo) {
+                avatarHTML = `<div class="membro-avatar"><img src="${this.escapeHTML(psi.photo)}" alt="${nameEsc}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'membro-avatar-initial\\'>${nameEsc.charAt(0)}</div>'"></div>`;
+            } else {
+                const initial = (psi.name || '?').charAt(0).toUpperCase();
+                avatarHTML = `<div class="membro-avatar-initial">${initial}</div>`;
+            }
+
+            // Info
+            const crpHTML = psi.crp ? `<span class="membro-meta">CRP ${this.escapeHTML(psi.crp)}</span>` : '';
+            const abordHTML = psi.abordagem ? `<span class="membro-meta">${this.escapeHTML(psi.abordagem)}</span>` : '';
+            const statusDot = psi.available
+                ? '<span style="color:#25d366;font-size:.7rem">● Disponivel</span>'
+                : '<span style="color:var(--ink-40);font-size:.7rem">● Ativo</span>';
+
+            // Action: WhatsApp button
+            const actionHTML = `<a href="${wppUrl}" target="_blank" rel="noopener noreferrer" class="membro-follow-btn" style="text-decoration:none;color:var(--emerald);border-color:var(--emerald)">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="flex-shrink:0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                WhatsApp
+            </a>`;
+
+            return `<div class="membro-card">
+                ${avatarHTML}
+                <div class="membro-info">
+                    <span class="membro-name">Psi. ${nameEsc}<span class="psi-badge">Psi.</span></span>
+                    ${crpHTML}
+                    ${abordHTML}
+                    ${statusDot}
+                </div>
+                ${actionHTML}
+            </div>`;
+        }).join('');
+    }
+
+    _renderMembrosUsers(listEl, search) {
+        const currentUserId = this.currentUser?.id;
+
+        let filtered = (this._membrosData || []).filter(m => {
             if (currentUserId && m.id === currentUserId) return false;
-            // Filter by type
-            if (filter === 'psi' && !m.is_psi) return false;
-            if (filter === 'membros' && m.is_psi) return false;
-            // Search
             if (search && m.name && !m.name.toLowerCase().includes(search)) return false;
             if (search && !m.name) return false;
             return true;
@@ -1707,7 +1774,6 @@ class AcolheBemApp {
             const isFollowing = this._followingSet.has(m.id);
             const location = [m.city, m.state].filter(Boolean).join(', ');
 
-            // Avatar
             let avatarHTML;
             if (m.photo_url) {
                 avatarHTML = `<div class="membro-avatar"><img src="${m.photo_url}" alt="${this.escapeHTML(m.name || '')}" loading="lazy"></div>`;
@@ -1716,14 +1782,9 @@ class AcolheBemApp {
                 avatarHTML = `<div class="membro-avatar-initial">${initial}</div>`;
             }
 
-            // Name + badge
-            const psiBadge = m.is_psi ? '<span class="psi-badge">Psi.</span>' : '';
-            const nameHTML = `<span class="membro-name">${this.escapeHTML(m.name || 'Anonimo')}${psiBadge}</span>`;
-
-            // Location
+            const nameHTML = `<span class="membro-name">${this.escapeHTML(m.name || 'Anonimo')}</span>`;
             const metaHTML = location ? `<span class="membro-meta">${this.escapeHTML(location)}</span>` : '';
 
-            // Follow button or "sem publicacoes"
             let actionHTML;
             if (!this.currentUser) {
                 actionHTML = '';
