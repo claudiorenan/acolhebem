@@ -188,6 +188,7 @@ class AcolheBemApp {
         this._searchCache = { posts: [], profiles: [], topics: [] };
         this._dmConversationId = null;
         this._dmOtherUser = null;
+        this._dmEnabled = false;
         this.init();
     }
 
@@ -262,12 +263,57 @@ class AcolheBemApp {
 
         // ---- DM UI ----
         this.initDM();
+        this._loadDmFeatureFlag();
+
+        // ---- ENGAGEMENT UI ----
+        this._initEngagementUI();
 
         // load default tab (women)
         this.applyTheme();
         this.buildContent();
         this.renderHeroViz();
         this.revealCards();
+
+        // Load public data (announcements, featured post)
+        this._loadAnnouncements();
+        this._loadFeaturedPost();
+        this._loadFeatureFlags();
+    }
+
+    _initEngagementUI() {
+        // Report modal
+        this.$('reportCancelBtn').addEventListener('click', () => this.$('reportModal').style.display = 'none');
+        this.$('reportSubmitBtn').addEventListener('click', () => this.submitReport());
+
+        // Referral modal
+        this.$('referralBtn').addEventListener('click', () => this.openReferralModal());
+        this.$('referralCopyBtn').addEventListener('click', () => this._copyReferralLink());
+        this.$('referralWhatsAppBtn').addEventListener('click', () => this._shareWhatsApp());
+        this.$('referralCloseBtn').addEventListener('click', () => this.$('referralModal').style.display = 'none');
+
+        // Announcement close
+        this.$('announcementClose').addEventListener('click', () => this.$('announcementBanner').style.display = 'none');
+
+        // Onboarding dismiss
+        this.$('onboardingDismiss').addEventListener('click', () => this.$('onboardingOverlay').style.display = 'none');
+
+        // Digest
+        this.$('digestBtn').addEventListener('click', () => this._showDigest());
+        this.$('digestCloseBtn').addEventListener('click', () => this.$('digestPanel').style.display = 'none');
+    }
+
+    async _loadFeatureFlags() {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb) return;
+            const { data } = await sb.from('content_filters').select('id, enabled').eq('filter_type', 'feature_flag');
+            if (!data) return;
+            this._featureFlags = {};
+            data.forEach(f => this._featureFlags[f.id] = f.enabled);
+            // Apply feature flag UI effects
+            const anonToggle = document.querySelector('.anon-toggle');
+            if (anonToggle) anonToggle.style.display = this._featureFlags.anonymous_posts !== false ? '' : 'none';
+        } catch { /* silent */ }
     }
 
     // ========================================
@@ -286,9 +332,14 @@ class AcolheBemApp {
         // Auth tab switching
         this.$$('.auth-tab').forEach(tab => {
             tab.addEventListener('click', () => {
+                const isLogin = tab.dataset.authTab === 'login';
+                // Block signup tab if registration is closed
+                if (!isLogin && this._featureFlags?.open_registration === false) {
+                    alert('Os cadastros estao fechados no momento.');
+                    return;
+                }
                 this.$$('.auth-tab').forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
-                const isLogin = tab.dataset.authTab === 'login';
                 this.$('loginForm').style.display = isLogin ? 'flex' : 'none';
                 this.$('signupForm').style.display = isLogin ? 'none' : 'flex';
                 // Reset psi toggles
@@ -335,14 +386,26 @@ class AcolheBemApp {
                 // Init notifications
                 Notifications.init(session.user.id);
                 this.$('notifBtn').style.display = '';
-                // Init DM
-                Messages.init(session.user.id);
-                this.$('dmBtn').style.display = '';
+                // Init DM (only if enabled by admin)
+                if (this._dmEnabled) {
+                    Messages.init(session.user.id);
+                    this.$('dmBtn').style.display = '';
+                }
                 // Load following cache
                 this._loadFollowingCache();
                 this.$('followingBtn').style.display = '';
                 // Set Sentry user context
                 ErrorHandler.setSentryUser(session.user.id, session.user.email);
+                // Show admin button
+                this.$('adminBtn').style.display = this.currentProfile?.is_admin ? '' : 'none';
+                // Check if banned
+                if (this._checkBanned()) return;
+                // Engagement features
+                this.$('referralBtn').style.display = '';
+                this._recordCheckIn();
+                this._loadDigest();
+                this._processReferralCode();
+                this._checkOnboarding();
             } else {
                 this.currentUser = null;
                 this.currentProfile = null;
@@ -356,6 +419,9 @@ class AcolheBemApp {
                 this._followingSet = new Set();
                 this._followingData = [];
                 this.$('followingBtn').style.display = 'none';
+                this.$('referralBtn').style.display = 'none';
+                this.$('digestBtn').style.display = 'none';
+                this.$('streakBar').style.display = 'none';
                 // Clear Sentry user context
                 ErrorHandler.clearSentryUser();
             }
@@ -371,8 +437,10 @@ class AcolheBemApp {
                     this.updateTopbarUser();
                     Notifications.init(user.id);
                     this.$('notifBtn').style.display = '';
-                    Messages.init(user.id);
-                    this.$('dmBtn').style.display = '';
+                    if (this._dmEnabled) {
+                        Messages.init(user.id);
+                        this.$('dmBtn').style.display = '';
+                    }
                     this._loadFollowingCache();
                     this.$('followingBtn').style.display = '';
                 }
@@ -539,6 +607,13 @@ class AcolheBemApp {
         const successEl = this.$('signupSuccess');
         errEl.classList.remove('visible');
         if (successEl) successEl.classList.remove('visible');
+
+        // Check feature flag — block if registration is closed
+        if (this._featureFlags?.open_registration === false) {
+            errEl.textContent = 'Os cadastros estao fechados no momento. Tente novamente mais tarde.';
+            errEl.classList.add('visible');
+            return;
+        }
 
         // Client-side validation
         const form = this.$('signupForm');
@@ -757,6 +832,11 @@ class AcolheBemApp {
             this.updateTopbarUser();
             successEl.textContent = 'Perfil atualizado com sucesso!';
             successEl.classList.add('visible');
+            // Onboarding: set avatar
+            if (avatarFile) {
+                this._updateOnboarding('set_avatar');
+                this._awardBadge('profile_complete');
+            }
             setTimeout(() => this.closeOverlay('profileModal'), 1200);
         }
     }
@@ -1002,7 +1082,8 @@ class AcolheBemApp {
         const postBtn = this.$('postBtn');
         postBtn.disabled = true;
 
-        const isAnonymous = this.$('anonCheckbox').checked;
+        const anonAllowed = this._featureFlags?.anonymous_posts !== false;
+        const isAnonymous = anonAllowed && this.$('anonCheckbox').checked;
         const { post, error } = await Feed.createPost(content, this.currentTopicId, isAnonymous);
         postBtn.disabled = false;
 
@@ -1018,6 +1099,10 @@ class AcolheBemApp {
 
         const feedList = this.$('feedList');
         feedList.prepend(this.buildPostCard(post));
+
+        // Onboarding & badges: first post
+        this._updateOnboarding('made_first_post');
+        this._awardBadge('first_post');
 
         // Notify topic subscribers
         if (this.currentTopicId && post) {
@@ -1063,9 +1148,11 @@ class AcolheBemApp {
             day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
         });
 
-        const heartSVG = post.userReacted
-            ? `<svg viewBox="0 0 24 24" fill="#e53935" stroke="#e53935" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`
-            : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+        // Reaction icon — show user's reaction type or default heart
+        const userReactionType = post.userReactionType || 'like';
+        const reactionIcon = post.userReacted
+            ? (this._reactionTypes.find(r => r.type === userReactionType)?.icon || '❤️')
+            : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
 
         const topicTag = post.topics
             ? `<div class="feed-post-topic">${post.topics.emoji || ''} ${this.escapeHTML(post.topics.name || '')}</div>`
@@ -1084,8 +1171,8 @@ class AcolheBemApp {
               </button>`
             : '';
 
-        // DM button: show for non-anon, non-own posts when logged in
-        const dmBtnHTML = showFollowBtn
+        // DM button: show for non-anon, non-own posts when logged in AND DM enabled
+        const dmBtnHTML = (showFollowBtn && this._dmEnabled)
             ? `<button class="dm-post-btn" data-user-id="${post.user_id}" data-user-name="${this.escapeHTML(authorName)}" title="Enviar mensagem">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                     <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -1102,13 +1189,17 @@ class AcolheBemApp {
                     <div class="feed-post-date">${date}</div>
                 </div>
                 ${isOwn ? '<button class="feed-post-delete" title="Excluir">excluir</button>' : (this.currentProfile?.is_admin ? '<button class="feed-post-delete admin-delete" title="Excluir (admin)">excluir</button>' : '')}
+                ${!isOwn && this.currentUser ? `<button class="feed-post-report" data-post-id="${post.id}" data-preview="${this.escapeHTML(post.content?.substring(0, 60) || '')}" title="Denunciar">denunciar</button>` : ''}
             </div>
             <div class="feed-post-content">${this.escapeHTML(post.content)}</div>
             <div class="feed-post-actions">
-                <button class="feed-action-btn like-btn ${post.userReacted ? 'liked' : ''}" data-post-id="${post.id}">
-                    ${heartSVG}
-                    <span class="like-count">${post.reactionCount}</span>
-                </button>
+                <div class="reaction-wrap">
+                    <button class="feed-action-btn like-btn ${post.userReacted ? 'liked' : ''}" data-post-id="${post.id}">
+                        <span class="reaction-icon">${reactionIcon}</span>
+                        <span class="like-count">${post.reactionCount}</span>
+                    </button>
+                    ${this._buildReactionPicker(post.id)}
+                </div>
                 <button class="feed-action-btn reply-toggle-btn" data-post-id="${post.id}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     <span class="reply-count">${post.replyCount}</span>
@@ -1152,6 +1243,9 @@ class AcolheBemApp {
                         // Notify the followed user
                         const actorName = this.currentProfile?.name || 'Alguem';
                         Notifications.notifyFollow(targetUserId, actorName);
+                        // Onboarding: followed someone
+                        this._updateOnboarding('followed_someone');
+                        this._awardBadge('first_follow');
                     }
                 }
                 followBtn.disabled = false;
@@ -1179,24 +1273,60 @@ class AcolheBemApp {
             });
         }
 
-        // Like handler
+        // Report handler
+        const reportBtn = card.querySelector('.feed-post-report');
+        if (reportBtn) {
+            reportBtn.addEventListener('click', () => {
+                this.openReportModal('post', post.id, post.content);
+            });
+        }
+
+        // Like handler — quick click toggles default 'like'
         const likeBtn = card.querySelector('.like-btn');
         likeBtn.addEventListener('click', async () => {
             if (!this.currentUser) { this.openOverlay('authModal'); return; }
-            const { liked, error } = await Feed.toggleReaction(post.id);
+            const { liked, error } = await Feed.toggleReaction(post.id, 'like');
             if (error) return;
             const countEl = likeBtn.querySelector('.like-count');
+            const iconEl = likeBtn.querySelector('.reaction-icon');
             let count = parseInt(countEl.textContent) || 0;
             if (liked) {
                 likeBtn.classList.add('liked');
-                likeBtn.querySelector('svg').outerHTML = `<svg viewBox="0 0 24 24" fill="#e53935" stroke="#e53935" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+                iconEl.textContent = '❤️';
                 countEl.textContent = count + 1;
             } else {
                 likeBtn.classList.remove('liked');
-                likeBtn.querySelector('svg').outerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+                iconEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
                 countEl.textContent = Math.max(0, count - 1);
             }
         });
+
+        // Reaction picker handler — diverse reactions
+        const reactionPicker = card.querySelector('.reaction-picker');
+        if (reactionPicker) {
+            reactionPicker.querySelectorAll('.reaction-pick-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!this.currentUser) { this.openOverlay('authModal'); return; }
+                    const rType = btn.dataset.type;
+                    const { liked, error } = await Feed.toggleReaction(post.id, rType);
+                    if (error) return;
+                    const countEl = likeBtn.querySelector('.like-count');
+                    const iconEl = likeBtn.querySelector('.reaction-icon');
+                    let count = parseInt(countEl.textContent) || 0;
+                    if (liked) {
+                        likeBtn.classList.add('liked');
+                        iconEl.textContent = btn.textContent;
+                        countEl.textContent = count + 1;
+                    } else {
+                        likeBtn.classList.remove('liked');
+                        iconEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
+                        countEl.textContent = Math.max(0, count - 1);
+                    }
+                    reactionPicker.classList.remove('show');
+                });
+            });
+        }
 
         // Reply toggle handler
         const replyToggleBtn = card.querySelector('.reply-toggle-btn');
@@ -1752,11 +1882,13 @@ class AcolheBemApp {
                 const dbTopic = this._dbTopicsMap[slug];
                 const count = dbTopic ? (countsByTopicId[dbTopic.id] || 0) : 0;
 
+                const label = count > 0 ? count + ' posts no mês' : c.subtopics.length + ' subtemas';
+
                 const fiEl = document.getElementById('fi-count-' + c.id);
-                if (fiEl) fiEl.textContent = count + ' posts no mês';
+                if (fiEl) fiEl.textContent = label;
 
                 const heroEl = document.getElementById('hero-count-' + c.id);
-                if (heroEl) heroEl.textContent = count + ' posts no mês';
+                if (heroEl) heroEl.textContent = label;
             });
         } catch (err) {
             console.warn('_loadMonthlyPostCounts error:', err);
@@ -1900,6 +2032,9 @@ class AcolheBemApp {
         this.$$('.feed-source-tab').forEach(t => t.classList.toggle('active', t.dataset.feedSource === 'all'));
         // Show feed source tabs only when logged in and following someone
         this.$('feedSourceTabs').style.display = (this.currentUser && this._followingSet.size > 0) ? '' : 'none';
+
+        // Onboarding: chose a topic
+        this._updateOnboarding('chose_topic');
 
         // Populate topic summary if category data is available
         const summary = this.$('topicSummary');
@@ -2275,6 +2410,11 @@ class AcolheBemApp {
             this.openOverlay('authModal');
             return;
         }
+        // Check feature flag — admins can always create
+        if (this._featureFlags?.member_topic_creation === false && !this.currentProfile?.is_admin) {
+            alert('A criacao de novos temas esta desabilitada no momento.');
+            return;
+        }
         this.$('createTopicForm').reset();
         this.$('createTopicError').classList.remove('visible');
         this.openOverlay('createTopicModal');
@@ -2361,7 +2501,7 @@ class AcolheBemApp {
                 <span class="fi-num" style="background:${c.color}">${c.id}</span>
                 <div class="fi-label">
                     <div class="fi-title">${c.icon} ${c.title}</div>
-                    <div class="fi-count" id="fi-count-${c.id}">-- posts no mês</div>
+                    <div class="fi-count" id="fi-count-${c.id}">${c.subtopics.length} subtemas</div>
                 </div>`;
             li.onclick = () => {
                 this.toggleIndex(false);
@@ -2832,7 +2972,7 @@ class AcolheBemApp {
                 .attr('y', subY).attr('text-anchor','middle')
                 .attr('font-size', subSz).attr('fill','#888')
                 .attr('font-family','DM Sans, sans-serif')
-                .text('-- posts no mês');
+                .text(n.c.subtopics.length + ' subtemas');
 
             g.transition().duration(700).delay(500 + i * 120)
                 .ease(d3.easeBackOut.overshoot(1.2))
@@ -2880,27 +3020,23 @@ class AcolheBemApp {
     // ========================================
     initAdmin() {
         this._adminPostsOffset = 0;
-        this._adminCurrentTab = 'posts';
+        this._adminCurrentTab = 'dashboard';
 
         this.$('adminBtn').addEventListener('click', () => this.showAdminPanel());
         this.$('adminBackBtn').addEventListener('click', () => this.hideAdminPanel());
 
-        // Admin tab switching
+        const adminPanels = ['dashboard','posts','reports','members','announcements','topics','featured','psi','filters','config'];
         this.$$('.admin-tab').forEach(btn => {
             btn.addEventListener('click', () => {
                 const tab = btn.dataset.adminTab;
                 this._adminCurrentTab = tab;
                 this.$$('.admin-tab').forEach(b => b.classList.toggle('active', b === btn));
-                this.$('adminPostsPanel').style.display = tab === 'posts' ? '' : 'none';
-                this.$('adminMembersPanel').style.display = tab === 'members' ? '' : 'none';
-                this.$('adminTopicsPanel').style.display = tab === 'topics' ? '' : 'none';
-                this.$('adminPsiPanel').style.display = tab === 'psi' ? '' : 'none';
-                this.$('adminFiltersPanel').style.display = tab === 'filters' ? '' : 'none';
-
-                if (tab === 'members') this.loadAdminMembers();
-                if (tab === 'topics') this.loadAdminTopics();
-                if (tab === 'psi') this.loadAdminPsi();
-                if (tab === 'filters') this.loadAdminFilters();
+                adminPanels.forEach(p => {
+                    const el = this.$('admin' + p.charAt(0).toUpperCase() + p.slice(1) + 'Panel');
+                    if (el) el.style.display = p === tab ? '' : 'none';
+                });
+                const loaders = { dashboard:'loadAdminDashboard', members:'loadAdminMembers', topics:'loadAdminTopics', psi:'loadAdminPsi', filters:'loadAdminFilters', config:'loadAdminConfig', reports:'loadAdminReports', announcements:'loadAdminAnnouncements', featured:'loadAdminFeatured' };
+                if (loaders[tab] && this[loaders[tab]]) this[loaders[tab]]();
             });
         });
 
@@ -2914,8 +3050,7 @@ class AcolheBemApp {
         this.$('psicologosSection').style.display = 'none';
         this.$('adminSection').style.display = '';
         this._adminPostsOffset = 0;
-        this.$('adminPostsList').innerHTML = '';
-        this.loadAdminPosts();
+        this.loadAdminDashboard();
     }
 
     hideAdminPanel() {
@@ -3017,6 +3152,10 @@ class AcolheBemApp {
             const genderLabel = m.gender === 'female' ? 'F' : m.gender === 'male' ? 'M' : m.gender === 'other' ? 'O' : '';
             const location = [m.city, m.state].filter(Boolean).join(', ');
             const adminBadge = m.is_admin ? '<span class="admin-badge">Admin</span>' : '';
+            const bannedTag = m.banned_at ? '<span class="admin-member-banned-tag">BANIDO</span>' : '';
+            const banBtn = !m.is_admin ? (m.banned_at
+                ? `<button class="admin-member-ban-btn unban" onclick="app.unbanMember('${m.id}')">Desbanir</button>`
+                : `<button class="admin-member-ban-btn ban" onclick="app.banMember('${m.id}')">Banir</button>`) : '';
 
             // Format WhatsApp number for link
             const wppNumber = (m.whatsapp || '').replace(/\D/g, '');
@@ -3025,13 +3164,16 @@ class AcolheBemApp {
             item.innerHTML = `
                 ${avatar}
                 <div class="admin-member-info">
-                    <div class="admin-member-name">${this.escapeHTML(m.name || 'Sem nome')} ${adminBadge}</div>
+                    <div class="admin-member-name">${this.escapeHTML(m.name || 'Sem nome')} ${adminBadge}${bannedTag}</div>
                     <div class="admin-member-detail">${this.escapeHTML(m.email)}</div>
                     <div class="admin-member-detail">${date}${genderLabel ? ' · ' + genderLabel : ''}${location ? ' · ' + this.escapeHTML(location) : ''}</div>
                 </div>
-                ${wppLink ? `<a href="${wppLink}" target="_blank" rel="noopener noreferrer" class="admin-wpp-btn" title="Chamar no WhatsApp">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                </a>` : ''}
+                <div style="display:flex;gap:6px;align-items:center">
+                    ${banBtn}
+                    ${wppLink ? `<a href="${wppLink}" target="_blank" rel="noopener noreferrer" class="admin-wpp-btn" title="Chamar no WhatsApp">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    </a>` : ''}
+                </div>
             `;
             list.appendChild(item);
         });
@@ -3185,6 +3327,690 @@ class AcolheBemApp {
         } catch (e) {
             ErrorHandler.handle('app.toggleAdminFilter', e);
             // Revert checkbox on error
+            if (checkbox) checkbox.checked = !enabled;
+            if (statusEl) statusEl.textContent = !enabled ? 'Ativo' : 'Inativo';
+        }
+    }
+
+    // ========================================
+    //  ADMIN DASHBOARD
+    // ========================================
+
+    async loadAdminDashboard() {
+        const panel = this.$('adminDashboardPanel');
+        panel.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando dashboard...</div>';
+        try {
+            const sb = window.supabaseClient;
+            const { data: stats, error } = await sb.rpc('admin_get_dashboard_stats');
+            if (error) throw error;
+
+            const { data: topTopics } = await sb.rpc('admin_get_top_topics', { p_days: 7 });
+            const { data: topReferrers } = await sb.rpc('admin_get_top_referrers', { p_limit: 5 });
+
+            const s = stats || {};
+            panel.innerHTML = `
+                <div class="admin-dashboard">
+                    <div class="admin-stats-grid">
+                        <div class="admin-stat-card"><div class="admin-stat-value">${s.total_members || 0}</div><div class="admin-stat-label">Membros totais</div></div>
+                        <div class="admin-stat-card highlight"><div class="admin-stat-value">${s.members_7d || 0}</div><div class="admin-stat-label">Ativos (7d)</div></div>
+                        <div class="admin-stat-card"><div class="admin-stat-value">${s.members_30d || 0}</div><div class="admin-stat-label">Ativos (30d)</div></div>
+                        <div class="admin-stat-card"><div class="admin-stat-value">${s.new_members_7d || 0}</div><div class="admin-stat-label">Novos (7d)</div></div>
+                        <div class="admin-stat-card highlight"><div class="admin-stat-value">${s.posts_today || 0}</div><div class="admin-stat-label">Posts hoje</div></div>
+                        <div class="admin-stat-card"><div class="admin-stat-value">${s.posts_7d || 0}</div><div class="admin-stat-label">Posts (7d)</div></div>
+                        <div class="admin-stat-card"><div class="admin-stat-value">${s.replies_7d || 0}</div><div class="admin-stat-label">Respostas (7d)</div></div>
+                        <div class="admin-stat-card"><div class="admin-stat-value">${s.reactions_7d || 0}</div><div class="admin-stat-label">Reacoes (7d)</div></div>
+                        <div class="admin-stat-card ${s.pending_reports > 0 ? 'warning' : ''}"><div class="admin-stat-value">${s.pending_reports || 0}</div><div class="admin-stat-label">Denuncias pendentes</div></div>
+                        <div class="admin-stat-card"><div class="admin-stat-value">${s.total_referrals || 0}</div><div class="admin-stat-label">Indicacoes</div></div>
+                        <div class="admin-stat-card"><div class="admin-stat-value">${s.banned_members || 0}</div><div class="admin-stat-label">Banidos</div></div>
+                    </div>
+                    <div class="admin-section-title">Temas mais ativos (7d)</div>
+                    <div class="admin-top-topics" id="adminTopTopics">
+                        ${(topTopics || []).map((t, i) => {
+                            const maxCount = topTopics[0]?.post_count || 1;
+                            const pct = Math.round((t.post_count / maxCount) * 100);
+                            return `<div class="admin-top-topic">
+                                <span>${t.topic_emoji || ''} ${this.escapeHTML(t.topic_name)}</span>
+                                <span style="margin-left:auto;font-weight:700">${t.post_count}</span>
+                            </div>
+                            <div class="admin-top-topic-bar" style="width:${pct}%"></div>`;
+                        }).join('') || '<div style="color:#888;font-size:.82rem">Nenhum post esta semana</div>'}
+                    </div>
+                    ${(topReferrers || []).length > 0 ? `
+                    <div class="admin-section-title">Top indicadores</div>
+                    <div class="admin-top-referrers">
+                        ${topReferrers.map(r => `<div class="admin-referrer-item"><span>${this.escapeHTML(r.user_name)}</span><span style="font-weight:700">${r.referral_count} indicacoes</span></div>`).join('')}
+                    </div>` : ''}
+                </div>`;
+        } catch (e) {
+            ErrorHandler.handle('app.loadAdminDashboard', e, { silent: true });
+            panel.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar dashboard.</div>';
+        }
+    }
+
+    // ========================================
+    //  ADMIN REPORTS (Denúncias)
+    // ========================================
+
+    async loadAdminReports() {
+        const panel = this.$('adminReportsPanel');
+        panel.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando denuncias...</div>';
+        try {
+            const sb = window.supabaseClient;
+            const { data, error } = await sb.from('reports').select('*').order('created_at', { ascending: false }).limit(50);
+            if (error) throw error;
+
+            const pendingCount = (data || []).filter(r => r.status === 'pending').length;
+            panel.innerHTML = `
+                <div class="admin-reports-count">${pendingCount} pendente(s) de ${(data || []).length} total</div>
+                <div id="adminReportsList">${(data || []).map(r => this._buildReportItem(r)).join('')}</div>
+            `;
+        } catch (e) {
+            ErrorHandler.handle('app.loadAdminReports', e, { silent: true });
+            panel.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar denuncias.</div>';
+        }
+    }
+
+    _buildReportItem(r) {
+        const date = new Date(r.created_at).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+        const actions = r.status === 'pending' ? `
+            <div class="admin-report-actions">
+                <button class="btn-hide" onclick="app.reviewReport('${r.id}','reviewed','hide_content')">Ocultar conteudo</button>
+                <button class="btn-ban" onclick="app.reviewReport('${r.id}','reviewed','ban_user')">Banir autor</button>
+                <button class="btn-dismiss" onclick="app.reviewReport('${r.id}','dismissed')">Ignorar</button>
+            </div>` : `<div style="font-size:.72rem;color:#888">Status: ${r.status} ${r.admin_action ? '(' + r.admin_action + ')' : ''}</div>`;
+        return `<div class="admin-report-item ${r.status}">
+            <div class="admin-report-header">
+                <span class="admin-report-type">${this.escapeHTML(r.target_type)}</span>
+                <span class="admin-report-date">${date}</span>
+            </div>
+            <div class="admin-report-reason">${this.escapeHTML(r.reason)}</div>
+            ${actions}
+        </div>`;
+    }
+
+    async reviewReport(reportId, status, action = null) {
+        try {
+            const sb = window.supabaseClient;
+            const updateData = { status, reviewed_at: new Date().toISOString(), reviewed_by: this.currentUser.id };
+            if (action) updateData.admin_action = action;
+            await sb.from('reports').update(updateData).eq('id', reportId);
+
+            if (action === 'hide_content') {
+                const { data: report } = await sb.from('reports').select('target_type, target_id').eq('id', reportId).single();
+                if (report?.target_type === 'post') {
+                    await sb.from('posts').update({ status: 'hidden' }).eq('id', report.target_id);
+                } else if (report?.target_type === 'reply') {
+                    await sb.from('replies').update({ status: 'hidden' }).eq('id', report.target_id);
+                }
+            } else if (action === 'ban_user') {
+                const { data: report } = await sb.from('reports').select('target_type, target_id').eq('id', reportId).single();
+                if (report) {
+                    let userId = report.target_id;
+                    if (report.target_type === 'post') {
+                        const { data: post } = await sb.from('posts').select('user_id').eq('id', report.target_id).single();
+                        userId = post?.user_id;
+                    } else if (report.target_type === 'reply') {
+                        const { data: reply } = await sb.from('replies').select('user_id').eq('id', report.target_id).single();
+                        userId = reply?.user_id;
+                    }
+                    if (userId) {
+                        await sb.from('profiles').update({ banned_at: new Date().toISOString(), ban_reason: 'Banido via denuncia' }).eq('id', userId);
+                    }
+                }
+            }
+            this.loadAdminReports();
+        } catch (e) {
+            ErrorHandler.handle('app.reviewReport', e);
+        }
+    }
+
+    // ========================================
+    //  ADMIN ANNOUNCEMENTS
+    // ========================================
+
+    async loadAdminAnnouncements() {
+        const panel = this.$('adminAnnouncementsPanel');
+        panel.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando...</div>';
+        try {
+            const sb = window.supabaseClient;
+            const { data, error } = await sb.from('announcements').select('*').order('created_at', { ascending: false }).limit(20);
+            if (error) throw error;
+
+            panel.innerHTML = `
+                <div class="admin-announcement-form">
+                    <input type="text" id="annTitle" placeholder="Titulo do aviso" maxlength="200">
+                    <textarea id="annBody" placeholder="Corpo do aviso (opcional)" maxlength="1000"></textarea>
+                    <div class="form-row">
+                        <select id="annType"><option value="info">Info</option><option value="warning">Alerta</option><option value="event">Evento</option><option value="celebration">Celebracao</option></select>
+                        <button class="btn-primary" onclick="app.createAnnouncement()" style="padding:8px 16px;font-size:.85rem">Publicar aviso</button>
+                    </div>
+                </div>
+                <div id="adminAnnList">
+                    ${(data || []).map(a => `
+                        <div class="admin-announcement-item ${a.active ? '' : 'inactive'}">
+                            <div>
+                                <strong>${this.escapeHTML(a.title)}</strong>
+                                <span style="font-size:.7rem;color:#888;margin-left:8px">${a.type} | ${a.active ? 'Ativo' : 'Inativo'}</span>
+                            </div>
+                            <div style="display:flex;gap:6px">
+                                <button class="admin-member-ban-btn ${a.active ? 'ban' : 'unban'}" onclick="app.toggleAnnouncement('${a.id}',${!a.active})">${a.active ? 'Desativar' : 'Ativar'}</button>
+                                <button class="admin-member-ban-btn ban" onclick="app.deleteAnnouncement('${a.id}')">Excluir</button>
+                            </div>
+                        </div>
+                    `).join('') || '<div style="color:#888;text-align:center;padding:12px">Nenhum aviso.</div>'}
+                </div>`;
+        } catch (e) {
+            ErrorHandler.handle('app.loadAdminAnnouncements', e, { silent: true });
+            panel.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar avisos.</div>';
+        }
+    }
+
+    async createAnnouncement() {
+        const title = this.$('annTitle')?.value?.trim();
+        const body = this.$('annBody')?.value?.trim();
+        const type = this.$('annType')?.value || 'info';
+        if (!title) return;
+        try {
+            const sb = window.supabaseClient;
+            await sb.from('announcements').insert({ title, body: body || null, type, created_by: this.currentUser.id });
+            this.loadAdminAnnouncements();
+            this._loadAnnouncements();
+        } catch (e) { ErrorHandler.handle('app.createAnnouncement', e); }
+    }
+
+    async toggleAnnouncement(id, active) {
+        try {
+            await window.supabaseClient.from('announcements').update({ active }).eq('id', id);
+            this.loadAdminAnnouncements();
+            this._loadAnnouncements();
+        } catch (e) { ErrorHandler.handle('app.toggleAnnouncement', e); }
+    }
+
+    async deleteAnnouncement(id) {
+        try {
+            await window.supabaseClient.from('announcements').delete().eq('id', id);
+            this.loadAdminAnnouncements();
+            this._loadAnnouncements();
+        } catch (e) { ErrorHandler.handle('app.deleteAnnouncement', e); }
+    }
+
+    // ========================================
+    //  ADMIN FEATURED POST
+    // ========================================
+
+    async loadAdminFeatured() {
+        const panel = this.$('adminFeaturedPanel');
+        panel.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando...</div>';
+        try {
+            const sb = window.supabaseClient;
+            const { data: current } = await sb.from('featured_posts').select('*, posts(content, user_id, profiles:posts_user_id_fkey(name))').eq('active', true).order('created_at', { ascending: false }).limit(1).single();
+
+            const { data: topPosts } = await sb.from('posts').select('id, content, user_id, profiles:posts_user_id_fkey(name)').eq('status', 'visible').order('created_at', { ascending: false }).limit(10);
+
+            let currentHTML = '<div class="admin-featured-none">Nenhum post em destaque.</div>';
+            if (current?.posts) {
+                currentHTML = `<div class="admin-featured-current">
+                    <div class="featured-post-label">⭐ ${this.escapeHTML(current.label)}</div>
+                    <div style="font-size:.85rem;color:#333;margin-bottom:6px">${this.escapeHTML(current.posts.content?.substring(0, 150))}...</div>
+                    <div style="font-size:.75rem;color:#888">por ${this.escapeHTML(current.posts.profiles?.name || 'Anonimo')}</div>
+                    <button class="admin-member-ban-btn ban" style="margin-top:8px" onclick="app.removeFeaturedPost('${current.id}')">Remover destaque</button>
+                </div>`;
+            }
+
+            panel.innerHTML = `
+                ${currentHTML}
+                <div class="admin-section-title">Posts recentes (selecione para destacar)</div>
+                <div>${(topPosts || []).map(p => `
+                    <div class="admin-announcement-item">
+                        <div style="flex:1">
+                            <div style="font-size:.82rem;color:#333">${this.escapeHTML(p.content?.substring(0, 100))}...</div>
+                            <div style="font-size:.72rem;color:#888">${this.escapeHTML(p.profiles?.name || 'Anonimo')}</div>
+                        </div>
+                        <button class="admin-member-ban-btn unban" onclick="app.featurePost('${p.id}')">Destacar</button>
+                    </div>
+                `).join('')}</div>`;
+        } catch (e) {
+            ErrorHandler.handle('app.loadAdminFeatured', e, { silent: true });
+            panel.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar destaque.</div>';
+        }
+    }
+
+    async featurePost(postId) {
+        try {
+            const sb = window.supabaseClient;
+            await sb.from('featured_posts').update({ active: false }).eq('active', true);
+            await sb.from('featured_posts').insert({ post_id: postId, featured_by: this.currentUser.id, label: 'Post da Semana' });
+            this.loadAdminFeatured();
+            this._loadFeaturedPost();
+        } catch (e) { ErrorHandler.handle('app.featurePost', e); }
+    }
+
+    async removeFeaturedPost(id) {
+        try {
+            await window.supabaseClient.from('featured_posts').update({ active: false }).eq('id', id);
+            this.loadAdminFeatured();
+            this.$('featuredPostWrap').style.display = 'none';
+        } catch (e) { ErrorHandler.handle('app.removeFeaturedPost', e); }
+    }
+
+    // ========================================
+    //  USER: REPORTS (Denunciar)
+    // ========================================
+
+    _reportTarget = null;
+
+    openReportModal(targetType, targetId, preview = '') {
+        this._reportTarget = { type: targetType, id: targetId };
+        this.$('reportTargetInfo').textContent = `Denunciando: ${targetType === 'post' ? 'publicacao' : targetType === 'reply' ? 'resposta' : 'perfil'} ${preview ? '— "' + preview.substring(0, 60) + '..."' : ''}`;
+        this.$('reportModal').style.display = '';
+        this.$('reportError').style.display = 'none';
+        this.$$('input[name="reportReason"]').forEach(r => r.checked = false);
+        this.$('reportDetails').value = '';
+    }
+
+    async submitReport() {
+        if (!this._reportTarget || !this.currentUser) return;
+        const reasonEl = document.querySelector('input[name="reportReason"]:checked');
+        if (!reasonEl) {
+            this.$('reportError').textContent = 'Selecione um motivo.';
+            this.$('reportError').style.display = '';
+            return;
+        }
+        const reason = reasonEl.value + (this.$('reportDetails').value ? ' — ' + this.$('reportDetails').value : '');
+        try {
+            const sb = window.supabaseClient;
+            const { error } = await sb.from('reports').insert({
+                reporter_id: this.currentUser.id,
+                target_type: this._reportTarget.type,
+                target_id: this._reportTarget.id,
+                reason
+            });
+            if (error) throw error;
+            this.$('reportModal').style.display = 'none';
+            this._reportTarget = null;
+        } catch (e) {
+            this.$('reportError').textContent = 'Erro ao enviar denuncia. Tente novamente.';
+            this.$('reportError').style.display = '';
+            ErrorHandler.handle('app.submitReport', e, { silent: true });
+        }
+    }
+
+    // ========================================
+    //  USER: ANNOUNCEMENTS
+    // ========================================
+
+    async _loadAnnouncements() {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb) return;
+            const { data } = await sb.from('announcements').select('*').eq('active', true).order('created_at', { ascending: false }).limit(1);
+            const ann = data?.[0];
+            const banner = this.$('announcementBanner');
+            if (!ann) { banner.style.display = 'none'; return; }
+
+            const icons = { info: '📢', warning: '⚠️', event: '📅', celebration: '🎉' };
+            banner.dataset.type = ann.type;
+            this.$('announcementIcon').textContent = icons[ann.type] || '📢';
+            this.$('announcementTitle').textContent = ann.title;
+            this.$('announcementBody').textContent = ann.body || '';
+            banner.style.display = '';
+        } catch { /* silent */ }
+    }
+
+    // ========================================
+    //  USER: REFERRAL
+    // ========================================
+
+    async _ensureReferralCode() {
+        if (!this.currentProfile?.referral_code) {
+            const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+            try {
+                const sb = window.supabaseClient;
+                await sb.from('profiles').update({ referral_code: code }).eq('id', this.currentUser.id);
+                this.currentProfile.referral_code = code;
+            } catch { /* silent */ }
+        }
+        return this.currentProfile?.referral_code || '';
+    }
+
+    async openReferralModal() {
+        const code = await this._ensureReferralCode();
+        const link = `${window.location.origin}?ref=${code}`;
+        this.$('referralLinkInput').value = link;
+        this.$('referralModal').style.display = '';
+    }
+
+    _copyReferralLink() {
+        const input = this.$('referralLinkInput');
+        navigator.clipboard.writeText(input.value).then(() => {
+            this.$('referralCopyBtn').textContent = 'Copiado!';
+            setTimeout(() => this.$('referralCopyBtn').textContent = 'Copiar', 2000);
+        });
+    }
+
+    _shareWhatsApp() {
+        const link = this.$('referralLinkInput').value;
+        const text = `Conhece o AcolheBem? Uma comunidade de acolhimento para saude mental. Entra la: ${link}`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    }
+
+    async _processReferralCode() {
+        const params = new URLSearchParams(window.location.search);
+        const refCode = params.get('ref');
+        if (!refCode || !this.currentUser) return;
+        try {
+            const sb = window.supabaseClient;
+            const { data: profile } = await sb.from('profiles').select('referred_by').eq('id', this.currentUser.id).single();
+            if (profile?.referred_by) return;
+            const { data: referrer } = await sb.from('profiles').select('id').eq('referral_code', refCode).single();
+            if (referrer && referrer.id !== this.currentUser.id) {
+                await sb.from('profiles').update({ referred_by: referrer.id }).eq('id', this.currentUser.id);
+            }
+            window.history.replaceState({}, '', window.location.pathname);
+        } catch { /* silent */ }
+    }
+
+    // ========================================
+    //  USER: STREAKS
+    // ========================================
+
+    async _recordCheckIn() {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb || !this.currentUser) return;
+            const { data } = await sb.rpc('record_check_in');
+            if (!data) return;
+            this._streakData = data;
+            const bar = this.$('streakBar');
+            if (data.current_streak > 0) {
+                this.$('streakText').innerHTML = `<b>${data.current_streak} dia${data.current_streak > 1 ? 's' : ''} seguido${data.current_streak > 1 ? 's' : ''}</b> na comunidade`;
+                bar.style.display = '';
+            }
+            this._checkStreakBadges(data);
+        } catch { /* silent */ }
+    }
+
+    _checkStreakBadges(data) {
+        if (data.current_streak >= 7) this._awardBadge('7_day_streak');
+        if (data.current_streak >= 30) this._awardBadge('30_day_streak');
+    }
+
+    // ========================================
+    //  USER: BADGES
+    // ========================================
+
+    async _awardBadge(badgeId) {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb || !this.currentUser) return;
+            await sb.from('user_badges').insert({ user_id: this.currentUser.id, badge_id: badgeId }).select();
+        } catch { /* badge likely already earned — ignore duplicate */ }
+    }
+
+    async _loadUserBadges(userId) {
+        try {
+            const sb = window.supabaseClient;
+            const { data } = await sb.from('user_badges').select('badge_id, earned_at, badge_definitions(name, icon, category)').eq('user_id', userId);
+            return data || [];
+        } catch { return []; }
+    }
+
+    _renderBadges(badges) {
+        if (!badges || badges.length === 0) return '';
+        return `<div class="profile-badges">${badges.map(b => {
+            const def = b.badge_definitions;
+            return `<span class="badge-chip" data-cat="${def?.category || ''}" title="${def?.name || ''}">${def?.icon || ''} ${def?.name || ''}</span>`;
+        }).join('')}</div>`;
+    }
+
+    // ========================================
+    //  USER: ONBOARDING
+    // ========================================
+
+    async _checkOnboarding() {
+        if (!this.currentUser) return;
+        try {
+            const sb = window.supabaseClient;
+            const { data } = await sb.from('onboarding_progress').select('*').eq('user_id', this.currentUser.id).single();
+            if (!data) {
+                await sb.from('onboarding_progress').insert({ user_id: this.currentUser.id });
+                this._showOnboarding({ chose_topic: false, made_first_post: false, followed_someone: false, set_avatar: false });
+                return;
+            }
+            if (data.completed_at) return;
+            const allDone = data.chose_topic && data.made_first_post && data.followed_someone && data.set_avatar;
+            if (allDone) {
+                await sb.from('onboarding_progress').update({ completed_at: new Date().toISOString() }).eq('user_id', this.currentUser.id);
+                await sb.from('profiles').update({ onboarding_completed: true }).eq('id', this.currentUser.id);
+                this._awardBadge('onboarding_done');
+                return;
+            }
+            this._showOnboarding(data);
+        } catch { /* silent */ }
+    }
+
+    _showOnboarding(data) {
+        const overlay = this.$('onboardingOverlay');
+        overlay.style.display = '';
+        const steps = [
+            { id: 'onbStepTopic', done: data.chose_topic },
+            { id: 'onbStepPost', done: data.made_first_post },
+            { id: 'onbStepFollow', done: data.followed_someone },
+            { id: 'onbStepAvatar', done: data.set_avatar },
+        ];
+        steps.forEach(s => {
+            const el = this.$(s.id);
+            if (el) {
+                el.classList.toggle('done', s.done);
+                el.querySelector('.onboarding-check').textContent = s.done ? '✅' : '☐';
+            }
+        });
+    }
+
+    async _updateOnboarding(field) {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb || !this.currentUser) return;
+            const update = {};
+            update[field] = true;
+            await sb.from('onboarding_progress').update(update).eq('user_id', this.currentUser.id);
+            this._checkOnboarding();
+        } catch { /* silent */ }
+    }
+
+    // ========================================
+    //  USER: FEATURED POST
+    // ========================================
+
+    async _loadFeaturedPost() {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb) return;
+            const { data } = await sb.from('featured_posts').select('*, posts(content, user_id, profiles:posts_user_id_fkey(name))').eq('active', true).order('created_at', { ascending: false }).limit(1).single();
+            const wrap = this.$('featuredPostWrap');
+            if (!data?.posts) { wrap.style.display = 'none'; return; }
+            wrap.style.display = '';
+            wrap.innerHTML = `<div class="featured-post-card">
+                <div class="featured-post-label">⭐ ${this.escapeHTML(data.label)}</div>
+                <div class="featured-post-content">${this.escapeHTML(data.posts.content?.substring(0, 300))}</div>
+                <div class="featured-post-author">— ${this.escapeHTML(data.posts.profiles?.name || 'Anonimo')}</div>
+            </div>`;
+        } catch { this.$('featuredPostWrap').style.display = 'none'; }
+    }
+
+    // ========================================
+    //  USER: WEEKLY DIGEST
+    // ========================================
+
+    async _loadDigest() {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb || !this.currentUser) return;
+            const { data } = await sb.rpc('get_weekly_digest');
+            if (!data) return;
+            this._digestData = data;
+            this.$('digestBtn').style.display = '';
+            const lastSeen = localStorage.getItem('ab_digest_seen');
+            const weekEnd = data.week_end;
+            if (!lastSeen || lastSeen < weekEnd) {
+                this.$('digestBadge').style.display = '';
+            }
+        } catch { /* silent */ }
+    }
+
+    _showDigest() {
+        if (!this._digestData) return;
+        const d = this._digestData;
+        const topTopic = d.top_topic ? `${d.top_topic.emoji || ''} ${d.top_topic.name} (${d.top_topic.count} posts)` : 'Nenhum';
+        this.$('digestContent').innerHTML = `
+            <div class="digest-stat"><span class="digest-stat-icon">📝</span><div class="digest-stat-info"><div class="digest-stat-value">${d.new_posts || 0}</div><div class="digest-stat-label">Novos posts</div></div></div>
+            <div class="digest-stat"><span class="digest-stat-icon">👋</span><div class="digest-stat-info"><div class="digest-stat-value">${d.new_members || 0}</div><div class="digest-stat-label">Novos membros</div></div></div>
+            <div class="digest-stat"><span class="digest-stat-icon">💬</span><div class="digest-stat-info"><div class="digest-stat-value">${d.new_replies || 0}</div><div class="digest-stat-label">Respostas</div></div></div>
+            <div class="digest-stat"><span class="digest-stat-icon">🏆</span><div class="digest-stat-info"><div class="digest-stat-value">${topTopic}</div><div class="digest-stat-label">Tema mais ativo</div></div></div>
+            ${d.your_streak ? `<div class="digest-stat"><span class="digest-stat-icon">🔥</span><div class="digest-stat-info"><div class="digest-stat-value">${d.your_streak} dias</div><div class="digest-stat-label">Seu streak atual</div></div></div>` : ''}
+        `;
+        this.$('digestPanel').style.display = '';
+        this.$('digestBadge').style.display = 'none';
+        localStorage.setItem('ab_digest_seen', this._digestData.week_end);
+    }
+
+    // ========================================
+    //  USER: BAN CHECK
+    // ========================================
+
+    _checkBanned() {
+        if (this.currentProfile?.banned_at) {
+            document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:40px;text-align:center">
+                <div><h2>Conta suspensa</h2><p style="color:#666;max-width:400px">Sua conta foi suspensa por violacao das regras da comunidade.${this.currentProfile.ban_reason ? '<br><br>Motivo: ' + this.escapeHTML(this.currentProfile.ban_reason) : ''}</p></div>
+            </div>`;
+            return true;
+        }
+        return false;
+    }
+
+    // ========================================
+    //  ADMIN: BAN/UNBAN MEMBERS
+    // ========================================
+
+    async banMember(userId, reason = '') {
+        try {
+            const sb = window.supabaseClient;
+            await sb.from('profiles').update({ banned_at: new Date().toISOString(), ban_reason: reason || 'Banido pelo admin' }).eq('id', userId);
+            this.loadAdminMembers();
+        } catch (e) { ErrorHandler.handle('app.banMember', e); }
+    }
+
+    async unbanMember(userId) {
+        try {
+            const sb = window.supabaseClient;
+            await sb.from('profiles').update({ banned_at: null, ban_reason: null }).eq('id', userId);
+            this.loadAdminMembers();
+        } catch (e) { ErrorHandler.handle('app.unbanMember', e); }
+    }
+
+    // ========================================
+    //  DIVERSE REACTIONS
+    // ========================================
+
+    _reactionTypes = [
+        { type: 'like', icon: '❤️', label: 'Curtir' },
+        { type: 'hug', icon: '🫂', label: 'Abraco' },
+        { type: 'strength', icon: '💪', label: 'Forca' },
+        { type: 'welcome', icon: '🤗', label: 'Acolhimento' },
+        { type: 'thanks', icon: '🙏', label: 'Obrigado' },
+    ];
+
+    _buildReactionPicker(postId) {
+        return `<div class="reaction-picker" id="reactionPicker_${postId}">
+            ${this._reactionTypes.map(r => `<button class="reaction-pick-btn" data-post-id="${postId}" data-type="${r.type}" title="${r.label}">${r.icon}</button>`).join('')}
+        </div>`;
+    }
+
+    // ========================================
+    //  ADMIN CONFIG (Feature Flags)
+    // ========================================
+
+    async _loadDmFeatureFlag() {
+        try {
+            const sb = window.supabaseClient;
+            if (!sb) return;
+            const { data } = await sb
+                .from('content_filters')
+                .select('enabled')
+                .eq('id', 'dm_feature')
+                .single();
+            if (data) {
+                this._dmEnabled = data.enabled;
+                // If DM just got enabled and user is logged in, activate it
+                if (this._dmEnabled && this.currentUser) {
+                    Messages.init(this.currentUser.id);
+                    this.$('dmBtn').style.display = '';
+                }
+            }
+        } catch {
+            // dm_feature row doesn't exist yet — keep disabled
+        }
+    }
+
+    async loadAdminConfig() {
+        const panel = this.$('adminConfigPanel');
+        panel.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Carregando...</div>';
+
+        const flagDescriptions = {
+            dm_feature: 'Permite membros trocarem mensagens privadas',
+            anonymous_posts: 'Permite que membros publiquem de forma anonima',
+            member_topic_creation: 'Permite que membros criem novos temas',
+            open_registration: 'Permite que novas pessoas se cadastrem na plataforma',
+        };
+
+        try {
+            const sb = window.supabaseClient;
+            const { data, error } = await sb
+                .from('content_filters')
+                .select('id, label, enabled')
+                .eq('filter_type', 'feature_flag')
+                .order('id');
+            if (error) throw error;
+
+            panel.innerHTML = `
+                <p class="admin-filters-desc">Ative ou desative funcionalidades da plataforma.</p>
+                <div class="admin-filters-list">
+                    ${(data || []).map(f => `
+                        <div class="admin-filter-item" id="adminConfig_${f.id}">
+                            <div class="admin-filter-info">
+                                <span class="admin-filter-label">${this.escapeHTML(f.label)}</span>
+                                <span class="admin-filter-type">${flagDescriptions[f.id] || ''}</span>
+                            </div>
+                            <label class="admin-filter-toggle">
+                                <input type="checkbox" ${f.enabled ? 'checked' : ''} onchange="app.toggleFeatureFlag('${f.id}', this.checked)">
+                                <span class="admin-filter-track"><span class="admin-filter-thumb"></span></span>
+                                <span class="admin-filter-status">${f.enabled ? 'Ativo' : 'Inativo'}</span>
+                            </label>
+                        </div>
+                    `).join('')}
+                </div>`;
+        } catch {
+            panel.innerHTML = '<div style="text-align:center;padding:20px;color:#e53935">Erro ao carregar config.</div>';
+        }
+    }
+
+    async toggleFeatureFlag(flagId, enabled) {
+        const item = this.$('adminConfig_' + flagId);
+        const statusEl = item?.querySelector('.admin-filter-status');
+        const checkbox = item?.querySelector('input[type="checkbox"]');
+        try {
+            const sb = window.supabaseClient;
+            await sb.from('content_filters').update({ enabled, updated_at: new Date().toISOString() }).eq('id', flagId);
+            if (statusEl) statusEl.textContent = enabled ? 'Ativo' : 'Inativo';
+            this._featureFlags[flagId] = enabled;
+            // Special handling for DM
+            if (flagId === 'dm_feature') {
+                this._dmEnabled = enabled;
+                if (enabled && this.currentUser) { Messages.init(this.currentUser.id); this.$('dmBtn').style.display = ''; }
+                else { Messages.destroy(); this.$('dmBtn').style.display = 'none'; }
+            }
+        } catch (e) {
+            ErrorHandler.handle('app.toggleFeatureFlag', e);
             if (checkbox) checkbox.checked = !enabled;
             if (statusEl) statusEl.textContent = !enabled ? 'Ativo' : 'Inativo';
         }

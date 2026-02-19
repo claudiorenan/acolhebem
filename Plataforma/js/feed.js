@@ -3,21 +3,53 @@
  * Handles topics, posts, reactions, and replies via Supabase.
  */
 
+const RATE_LIMITS = {
+  create_post:    { max: 10, window: 3600 },
+  create_reply:   { max: 30, window: 3600 },
+  toggle_reaction: { max: 60, window: 3600 },
+};
+
+async function checkRateLimit(action) {
+  const limit = RATE_LIMITS[action];
+  if (!limit) return { allowed: true };
+  try {
+    const sb = window.supabaseClient;
+    const { data, error } = await sb.rpc('check_rate_limit', {
+      p_action: action,
+      p_max_count: limit.max,
+      p_window_seconds: limit.window,
+    });
+    if (error) {
+      // If RPC doesn't exist yet (migration not applied), allow the action
+      console.warn('Rate limit check failed:', error.message);
+      return { allowed: true };
+    }
+    return data;
+  } catch {
+    return { allowed: true };
+  }
+}
+
 const Feed = {
   /**
    * Load all topics ordered by post_count desc, then name.
    * @returns {Promise<object[]>}
    */
   async loadTopics() {
-    const sb = window.supabaseClient;
-    const { data, error } = await sb
-      .from('topics')
-      .select('*')
-      .order('post_count', { ascending: false })
-      .order('name', { ascending: true });
+    try {
+      const sb = window.supabaseClient;
+      const { data, error } = await sb
+        .from('topics')
+        .select('*')
+        .order('post_count', { ascending: false })
+        .order('name', { ascending: true });
 
-    if (error) { console.error('loadTopics error:', error); return []; }
-    return data || [];
+      if (error) { ErrorHandler.handle('feed.loadTopics', error, { silent: true }); return []; }
+      return data || [];
+    } catch (err) {
+      ErrorHandler.handle('feed.loadTopics', err);
+      return [];
+    }
   },
 
   /**
@@ -112,7 +144,7 @@ const Feed = {
 
     const { data: posts, error } = await query;
 
-    if (error) { console.error('loadPosts error:', error); return []; }
+    if (error) { ErrorHandler.handle('feed.loadPosts', error, { silent: true }); return []; }
 
     // Fetch reaction counts and user reactions in bulk
     const postIds = posts.map(p => p.id);
@@ -133,11 +165,11 @@ const Feed = {
     if (user) {
       const { data: userReacts } = await sb
         .from('reactions')
-        .select('post_id')
+        .select('post_id, reaction_type')
         .eq('user_id', user.id)
         .in('post_id', postIds);
       if (userReacts) {
-        userReacts.forEach(r => { userReactions[r.post_id] = true; });
+        userReacts.forEach(r => { userReactions[r.post_id] = r.reaction_type || 'like'; });
       }
     }
 
@@ -160,6 +192,61 @@ const Feed = {
       reactionCount: countMap[p.id] || 0,
       replyCount: replyCountMap[p.id] || 0,
       userReacted: !!userReactions[p.id],
+      userReactionType: userReactions[p.id] || null,
+    }));
+  },
+
+  /**
+   * Load posts only from users the current user follows.
+   * @param {string} topicId - optional topic filter
+   * @param {number} limit
+   * @param {number} offset
+   * @param {Set} followingSet - set of followed user IDs
+   * @returns {Promise<object[]>}
+   */
+  async loadFollowingFeed(topicId = null, limit = 20, offset = 0, followingSet = new Set()) {
+    if (followingSet.size === 0) return [];
+    const sb = window.supabaseClient;
+    const user = (await sb.auth.getUser()).data.user;
+    const followIds = Array.from(followingSet);
+
+    let query = sb
+      .from('posts')
+      .select('*, profiles!posts_user_id_fkey(name, photo_url, gender, birth_year, is_psi), topics!posts_topic_id_fkey(name, emoji)')
+      .eq('status', 'visible')
+      .in('user_id', followIds)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (topicId) query = query.eq('topic_id', topicId);
+
+    const { data: posts, error } = await query;
+    if (error) { ErrorHandler.handle('feed.loadFollowingFeed', error, { silent: true }); return []; }
+
+    const postIds = posts.map(p => p.id);
+    if (postIds.length === 0) return [];
+
+    const { data: reactionCounts } = await sb.from('reactions').select('post_id').in('post_id', postIds);
+    const countMap = {};
+    if (reactionCounts) reactionCounts.forEach(r => { countMap[r.post_id] = (countMap[r.post_id] || 0) + 1; });
+
+    let userReactions = {};
+    if (user) {
+      const { data: userReacts } = await sb.from('reactions').select('post_id, reaction_type').eq('user_id', user.id).in('post_id', postIds);
+      if (userReacts) userReacts.forEach(r => { userReactions[r.post_id] = r.reaction_type || 'like'; });
+    }
+
+    const { data: replyCounts } = await sb.from('replies').select('post_id').in('post_id', postIds);
+    const replyCountMap = {};
+    if (replyCounts) replyCounts.forEach(r => { replyCountMap[r.post_id] = (replyCountMap[r.post_id] || 0) + 1; });
+
+    return posts.map(p => ({
+      ...p,
+      author: p.profiles,
+      reactionCount: countMap[p.id] || 0,
+      replyCount: replyCountMap[p.id] || 0,
+      userReacted: !!userReactions[p.id],
+      userReactionType: userReactions[p.id] || null,
     }));
   },
 
@@ -174,6 +261,9 @@ const Feed = {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
     if (!user) return { post: null, error: 'Faca login para publicar.' };
+
+    const rl = await checkRateLimit('create_post');
+    if (!rl.allowed) return { post: null, error: `Voce atingiu o limite de ${rl.max} posts por hora. Tente novamente mais tarde.` };
 
     const insertData = { user_id: user.id, content, is_anonymous: isAnonymous };
     if (topicId) insertData.topic_id = topicId;
@@ -205,26 +295,35 @@ const Feed = {
    * @param {string} postId
    * @returns {Promise<{liked: boolean, error: string|null}>}
    */
-  async toggleReaction(postId) {
+  async toggleReaction(postId, reactionType = 'like') {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
     if (!user) return { liked: false, error: 'Faca login para reagir.' };
 
-    // Check if already reacted
+    // Check if already reacted (any type)
     const { data: existing } = await sb
       .from('reactions')
-      .select('id')
+      .select('id, reaction_type')
       .eq('post_id', postId)
       .eq('user_id', user.id)
       .maybeSingle();
 
     if (existing) {
-      await sb.from('reactions').delete().eq('id', existing.id);
-      return { liked: false, error: null };
+      if (existing.reaction_type === reactionType) {
+        // Same reaction type — toggle off
+        await sb.from('reactions').delete().eq('id', existing.id);
+        return { liked: false, error: null };
+      } else {
+        // Different type — update to new type
+        await sb.from('reactions').update({ reaction_type: reactionType }).eq('id', existing.id);
+        return { liked: true, error: null };
+      }
     } else {
+      const rl = await checkRateLimit('toggle_reaction');
+      if (!rl.allowed) return { liked: false, error: `Voce atingiu o limite de ${rl.max} reacoes por hora.` };
       const { error } = await sb
         .from('reactions')
-        .insert({ post_id: postId, user_id: user.id, type: 'like' });
+        .insert({ post_id: postId, user_id: user.id, type: 'like', reaction_type: reactionType });
       if (error) return { liked: false, error: error.message };
       return { liked: true, error: null };
     }
@@ -243,7 +342,7 @@ const Feed = {
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
 
-    if (error) { console.error('loadReplies error:', error); return []; }
+    if (error) { ErrorHandler.handle('feed.loadReplies', error, { silent: true }); return []; }
     return data.map(r => ({ ...r, author: r.profiles }));
   },
 
@@ -258,6 +357,9 @@ const Feed = {
     const sb = window.supabaseClient;
     const user = (await sb.auth.getUser()).data.user;
     if (!user) return { reply: null, error: 'Faca login para responder.' };
+
+    const rl = await checkRateLimit('create_reply');
+    if (!rl.allowed) return { reply: null, error: `Voce atingiu o limite de ${rl.max} respostas por hora. Tente novamente mais tarde.` };
 
     const { data, error } = await sb
       .from('replies')
@@ -292,9 +394,9 @@ const Feed = {
     const sb = window.supabaseClient;
     const { data, error } = await sb
       .from('profiles')
-      .select('id, name, email, whatsapp, city, state, gender, birth_year, photo_url, is_admin, created_at')
+      .select('id, name, email, whatsapp, city, state, gender, birth_year, photo_url, is_admin, created_at, banned_at, ban_reason, referred_by, referral_code')
       .order('created_at', { ascending: false });
-    if (error) { console.error('loadMembers error:', error); return []; }
+    if (error) { ErrorHandler.handle('feed.loadMembers', error, { silent: true }); return []; }
     return data || [];
   },
 
@@ -308,7 +410,7 @@ const Feed = {
       .select('*, profiles!posts_user_id_fkey(name, photo_url, email), topics!posts_topic_id_fkey(name, emoji)')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
-    if (error) { console.error('loadAllPostsAdmin error:', error); return []; }
+    if (error) { ErrorHandler.handle('feed.loadAllPostsAdmin', error, { silent: true }); return []; }
     return data || [];
   },
 
@@ -375,7 +477,7 @@ const Feed = {
       .select('id, name, email, whatsapp, city, state, crp, photo_url, created_at')
       .eq('is_psi', true)
       .order('created_at', { ascending: false });
-    if (error) { console.error('loadPsychologists error:', error); return []; }
+    if (error) { ErrorHandler.handle('feed.loadPsychologists', error, { silent: true }); return []; }
     return data || [];
   },
 
@@ -524,7 +626,7 @@ const Feed = {
       .eq('follower_id', user.id)
       .order('created_at', { ascending: false });
 
-    if (error) { console.error('getFollowing error:', error); return []; }
+    if (error) { ErrorHandler.handle('feed.getFollowing', error, { silent: true }); return []; }
     return (data || []).map(f => ({
       following_id: f.following_id,
       name: f.profiles?.name || 'Usuario',
@@ -532,6 +634,24 @@ const Feed = {
       is_psi: f.profiles?.is_psi || false,
       followed_at: f.created_at,
     }));
+  },
+
+  /**
+   * Get follower and following counts for a user.
+   * @param {string} userId
+   * @returns {Promise<{followers: number, following: number}>}
+   */
+  async getFollowCounts(userId) {
+    const sb = window.supabaseClient;
+    try {
+      const [{ count: followers }, { count: following }] = await Promise.all([
+        sb.from('user_follows').select('*', { count: 'exact', head: true }).eq('following_id', userId),
+        sb.from('user_follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId),
+      ]);
+      return { followers: followers || 0, following: following || 0 };
+    } catch {
+      return { followers: 0, following: 0 };
+    }
   },
 
   /**
@@ -551,7 +671,7 @@ const Feed = {
       .eq('status', 'visible')
       .order('created_at', { ascending: false });
 
-    if (error) { console.error('loadUserPosts error:', error); return []; }
+    if (error) { ErrorHandler.handle('feed.loadUserPosts', error, { silent: true }); return []; }
 
     const postIds = posts.map(p => p.id);
     if (postIds.length === 0) return [];
@@ -572,11 +692,11 @@ const Feed = {
     if (currentUser) {
       const { data: userReacts } = await sb
         .from('reactions')
-        .select('post_id')
+        .select('post_id, reaction_type')
         .eq('user_id', currentUser.id)
         .in('post_id', postIds);
       if (userReacts) {
-        userReacts.forEach(r => { userReactions[r.post_id] = true; });
+        userReacts.forEach(r => { userReactions[r.post_id] = r.reaction_type || 'like'; });
       }
     }
 
@@ -598,6 +718,7 @@ const Feed = {
       reactionCount: countMap[p.id] || 0,
       replyCount: replyCountMap[p.id] || 0,
       userReacted: !!userReactions[p.id],
+      userReactionType: userReactions[p.id] || null,
     }));
   },
 
@@ -619,7 +740,7 @@ const Feed = {
     }
 
     const { data, error } = await query;
-    if (error) { console.error('getTopicSubscribers error:', error); return []; }
+    if (error) { ErrorHandler.handle('feed.getTopicSubscribers', error, { silent: true }); return []; }
     return data || [];
   }
 };

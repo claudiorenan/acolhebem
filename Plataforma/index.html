@@ -149,6 +149,13 @@
                             </svg>
                             <span class="dm-badge" id="dmBadge" style="display:none">0</span>
                         </button>
+                        <button class="topbar-btn topbar-referral-btn" id="referralBtn" aria-label="Indicar" title="Indicar amigo(a)" style="display:none">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg>
+                        </button>
+                        <button class="topbar-btn topbar-digest-btn" id="digestBtn" aria-label="Resumo semanal" title="Resumo da Semana" style="display:none">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <span class="digest-badge" id="digestBadge" style="display:none">1</span>
+                        </button>
                         <button class="topbar-btn topbar-admin-btn" id="adminBtn" aria-label="Admin" title="Painel Admin" style="display:none">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                         </button>
@@ -198,8 +205,104 @@
                 </div>
             </div>
 
+            <!-- Announcement Banner -->
+            <div class="announcement-banner" id="announcementBanner" style="display:none">
+                <div class="announcement-banner-inner">
+                    <span class="announcement-icon" id="announcementIcon">📢</span>
+                    <div class="announcement-text">
+                        <strong id="announcementTitle"></strong>
+                        <span id="announcementBody"></span>
+                    </div>
+                    <button class="announcement-close" id="announcementClose" aria-label="Fechar">&times;</button>
+                </div>
+            </div>
+
+            <!-- Streak Indicator -->
+            <div class="streak-bar" id="streakBar" style="display:none">
+                <span class="streak-flame">🔥</span>
+                <span class="streak-text" id="streakText"></span>
+            </div>
+
+            <!-- Onboarding Overlay -->
+            <div class="onboarding-overlay" id="onboardingOverlay" style="display:none">
+                <div class="onboarding-card">
+                    <h3>Bem-vindo(a) ao AcolheBem! 🎉</h3>
+                    <p>Complete estes passos para comecar:</p>
+                    <div class="onboarding-steps">
+                        <label class="onboarding-step" id="onbStepTopic">
+                            <span class="onboarding-check">☐</span>
+                            <span>Escolha um tema de interesse</span>
+                        </label>
+                        <label class="onboarding-step" id="onbStepPost">
+                            <span class="onboarding-check">☐</span>
+                            <span>Faca seu primeiro post</span>
+                        </label>
+                        <label class="onboarding-step" id="onbStepFollow">
+                            <span class="onboarding-check">☐</span>
+                            <span>Siga alguem da comunidade</span>
+                        </label>
+                        <label class="onboarding-step" id="onbStepAvatar">
+                            <span class="onboarding-check">☐</span>
+                            <span>Adicione uma foto de perfil</span>
+                        </label>
+                    </div>
+                    <button class="onboarding-dismiss" id="onboardingDismiss">Pular por enquanto</button>
+                </div>
+            </div>
+
+            <!-- Report Modal -->
+            <div class="modal-overlay" id="reportModal" style="display:none">
+                <div class="modal-card modal-report">
+                    <h3>Denunciar conteudo</h3>
+                    <p class="report-target-info" id="reportTargetInfo"></p>
+                    <div class="report-reasons">
+                        <label><input type="radio" name="reportReason" value="Conteudo ofensivo ou prejudicial"> Conteudo ofensivo ou prejudicial</label>
+                        <label><input type="radio" name="reportReason" value="Spam ou propaganda"> Spam ou propaganda</label>
+                        <label><input type="radio" name="reportReason" value="Assedio ou bullying"> Assedio ou bullying</label>
+                        <label><input type="radio" name="reportReason" value="Informacao falsa sobre saude mental"> Informacao falsa sobre saude mental</label>
+                        <label><input type="radio" name="reportReason" value="Compartilhamento de dados pessoais"> Compartilhamento de dados pessoais</label>
+                        <label><input type="radio" name="reportReason" value="Outro"> Outro</label>
+                    </div>
+                    <textarea class="report-details" id="reportDetails" placeholder="Detalhes adicionais (opcional)" maxlength="500"></textarea>
+                    <div class="report-actions">
+                        <button class="btn-secondary" id="reportCancelBtn">Cancelar</button>
+                        <button class="btn-primary" id="reportSubmitBtn">Enviar denuncia</button>
+                    </div>
+                    <p class="report-error" id="reportError" style="display:none"></p>
+                </div>
+            </div>
+
+            <!-- Referral Share Modal -->
+            <div class="modal-overlay" id="referralModal" style="display:none">
+                <div class="modal-card modal-referral">
+                    <h3>Indicar para um(a) amigo(a) 🎯</h3>
+                    <p>Compartilhe o AcolheBem com quem precisa de acolhimento:</p>
+                    <div class="referral-link-box">
+                        <input type="text" id="referralLinkInput" readonly>
+                        <button class="referral-copy-btn" id="referralCopyBtn">Copiar</button>
+                    </div>
+                    <button class="referral-whatsapp-btn" id="referralWhatsAppBtn">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.613.613l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.387 0-4.607-.798-6.382-2.142l-.357-.267-3.693 1.237 1.237-3.693-.267-.357A9.953 9.953 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z"/></svg>
+                        Enviar via WhatsApp
+                    </button>
+                    <button class="btn-secondary referral-close-btn" id="referralCloseBtn">Fechar</button>
+                </div>
+            </div>
+
+            <!-- Weekly Digest Panel -->
+            <div class="digest-panel" id="digestPanel" style="display:none">
+                <div class="digest-header">
+                    <h3>Resumo da Semana</h3>
+                    <button class="digest-close" id="digestCloseBtn">&times;</button>
+                </div>
+                <div class="digest-content" id="digestContent"></div>
+            </div>
+
             <!-- Container principal -->
             <div class="main-body" id="mainBody">
+                <!-- Featured Post -->
+                <div class="featured-post-wrap" id="featuredPostWrap" style="display:none"></div>
+
                 <!-- D3 Visualization -->
                 <div class="viz-wrap" id="vizWrap">
                     <svg id="heroSVG"></svg>
@@ -488,18 +591,29 @@
 
                 <!-- Admin Tabs -->
                 <div class="admin-tabs">
-                    <button class="admin-tab active" data-admin-tab="posts">Posts</button>
+                    <button class="admin-tab active" data-admin-tab="dashboard">Dashboard</button>
+                    <button class="admin-tab" data-admin-tab="posts">Posts</button>
+                    <button class="admin-tab" data-admin-tab="reports">Denuncias</button>
                     <button class="admin-tab" data-admin-tab="members">Membros</button>
-                    <button class="admin-tab" data-admin-tab="topics">Temas & Links</button>
-                    <button class="admin-tab" data-admin-tab="psi">Psicologos</button>
+                    <button class="admin-tab" data-admin-tab="announcements">Avisos</button>
+                    <button class="admin-tab" data-admin-tab="topics">Temas</button>
+                    <button class="admin-tab" data-admin-tab="featured">Destaque</button>
+                    <button class="admin-tab" data-admin-tab="psi">Psi</button>
                     <button class="admin-tab" data-admin-tab="filters">Filtros</button>
+                    <button class="admin-tab" data-admin-tab="config">Config</button>
                 </div>
 
+                <!-- Dashboard -->
+                <div class="admin-panel" id="adminDashboardPanel"></div>
+
                 <!-- Posts Moderation -->
-                <div class="admin-panel" id="adminPostsPanel">
+                <div class="admin-panel" id="adminPostsPanel" style="display:none">
                     <div id="adminPostsList" class="admin-posts-list"></div>
                     <button class="feed-load-more" id="adminPostsLoadMore" style="display:none">Carregar mais</button>
                 </div>
+
+                <!-- Reports (Denuncias) -->
+                <div class="admin-panel" id="adminReportsPanel" style="display:none"></div>
 
                 <!-- Members List -->
                 <div class="admin-panel" id="adminMembersPanel" style="display:none">
@@ -507,10 +621,16 @@
                     <div id="adminMembersList" class="admin-members-list"></div>
                 </div>
 
+                <!-- Announcements -->
+                <div class="admin-panel" id="adminAnnouncementsPanel" style="display:none"></div>
+
                 <!-- Topics & Links Editor -->
                 <div class="admin-panel" id="adminTopicsPanel" style="display:none">
                     <div id="adminTopicsList" class="admin-topics-list"></div>
                 </div>
+
+                <!-- Featured Post -->
+                <div class="admin-panel" id="adminFeaturedPanel" style="display:none"></div>
 
                 <!-- Psychologists List -->
                 <div class="admin-panel" id="adminPsiPanel" style="display:none">
@@ -523,6 +643,9 @@
                     <p class="admin-filters-desc">Ative ou desative os filtros de conteudo aplicados nas publicacoes da comunidade.</p>
                     <div id="adminFiltersList" class="admin-filters-list"></div>
                 </div>
+
+                <!-- Config (Feature Flags) -->
+                <div class="admin-panel" id="adminConfigPanel" style="display:none"></div>
             </div>
 
             <!-- Rodapé -->
