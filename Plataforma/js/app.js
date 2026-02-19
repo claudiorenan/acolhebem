@@ -2759,23 +2759,144 @@ class AcolheBemApp {
         }
     }
 
+    _motivationalQuotes = [
+        'Cada passo conta. Continue caminhando!',
+        'Voce e mais forte do que imagina.',
+        'Cuidar de si e o primeiro ato de coragem.',
+        'O movimento de hoje constroi o bem-estar de amanha.',
+        'Sua jornada inspira outras pessoas.',
+        'Pequenos progressos levam a grandes transformacoes.',
+        'Voce ja deu o passo mais dificil: comecar.',
+        'Seu corpo agradece cada minuto de movimento.',
+        'A consistencia vence a intensidade.',
+        'Acolher-se e revolucionario.',
+    ];
+
+    _sharePreviewInitialized = false;
+
     async _shareCheckinAsImage(item, profile) {
-        const W = 1080, H = 1080;
-        const canvas = document.createElement('canvas');
+        this._shareItem = item;
+        this._shareProfile = profile;
+        this._shareCurrentRatio = '1:1';
+
+        const modal = document.getElementById('sharePreviewModal');
+        modal.classList.add('active');
+
+        // Initialize listeners once
+        if (!this._sharePreviewInitialized) {
+            this._sharePreviewInitialized = true;
+
+            // Close button
+            document.getElementById('sharePreviewClose').addEventListener('click', () => {
+                modal.classList.remove('active');
+            });
+
+            // Click outside to close
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.classList.remove('active');
+            });
+
+            // Format toggle buttons
+            document.querySelectorAll('.share-format-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.share-format-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this._shareCurrentRatio = btn.dataset.ratio;
+                    this._generateCheckinCanvas(this._shareCurrentRatio);
+                });
+            });
+
+            // Download button
+            document.getElementById('shareDownloadBtn').addEventListener('click', () => {
+                const canvas = document.getElementById('sharePreviewCanvas');
+                canvas.toBlob((blob) => {
+                    if (!blob) return;
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'acolhebem-atividade.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    ErrorHandler.showToast('Imagem salva!', 'success');
+                }, 'image/png');
+            });
+
+            // Share button (native or fallback)
+            document.getElementById('shareNativeBtn').addEventListener('click', async () => {
+                const canvas = document.getElementById('sharePreviewCanvas');
+                canvas.toBlob(async (blob) => {
+                    if (!blob) return;
+                    const file = new File([blob], 'acolhebem-atividade.png', { type: 'image/png' });
+
+                    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+                        try {
+                            await navigator.share({ files: [file], title: 'AcolheBem - Atividade', text: this._shareItem?.motivation_message });
+                            return;
+                        } catch { /* user cancelled — fall through */ }
+                    }
+
+                    // Fallback: download
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'acolhebem-atividade.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    ErrorHandler.showToast('Imagem salva!', 'success');
+                }, 'image/png');
+            });
+        }
+
+        // Generate the default 1:1 preview
+        // Reset format tabs to 1:1
+        document.querySelectorAll('.share-format-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('.share-format-btn[data-ratio="1:1"]').classList.add('active');
+        this._generateCheckinCanvas('1:1');
+    }
+
+    _generateCheckinCanvas(ratio) {
+        const item = this._shareItem;
+        const profile = this._shareProfile;
+        if (!item || !profile) return;
+
+        const W = 1080;
+        const H = ratio === '9:16' ? 1920 : 1080;
+
+        const canvas = document.getElementById('sharePreviewCanvas');
         canvas.width = W;
         canvas.height = H;
         const ctx = canvas.getContext('2d');
 
-        // Background gradient (emerald)
+        const FONT = '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+
+        // Background gradient (dark emerald)
         const grad = ctx.createLinearGradient(0, 0, W, H);
-        grad.addColorStop(0, '#10b981');
-        grad.addColorStop(1, '#059669');
+        grad.addColorStop(0, '#1a4d44');
+        grad.addColorStop(1, '#047857');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, W, H);
 
+        // Top branding outside card (white on dark bg — good contrast)
+        ctx.font = `bold 38px ${FONT}`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText('AcolheBem', W / 2, ratio === '9:16' ? 100 : 90);
+        ctx.textAlign = 'left';
+
         // White card
-        const cardX = 60, cardY = 140, cardW = W - 120, cardH = H - 280;
+        const margin = 60;
+        const topOffset = ratio === '9:16' ? 160 : 140;
+        const bottomOffset = ratio === '9:16' ? 120 : 140;
+        const cardX = margin;
+        const cardY = topOffset;
+        const cardW = W - margin * 2;
+        const cardH = H - topOffset - bottomOffset;
         const radius = 32;
+
         ctx.beginPath();
         ctx.moveTo(cardX + radius, cardY);
         ctx.lineTo(cardX + cardW - radius, cardY);
@@ -2791,7 +2912,7 @@ class AcolheBemApp {
         ctx.fill();
 
         // Content inside card
-        const pad = 56;
+        const pad = ratio === '9:16' ? 60 : 56;
         const cx = cardX + pad;
         let cy = cardY + pad;
         const maxW = cardW - pad * 2;
@@ -2800,78 +2921,68 @@ class AcolheBemApp {
         const typeObj = ACTIVITY_TYPES.find(t => t.key === item.activity_type);
         const typeLine = (typeObj ? typeObj.emoji + ' ' + typeObj.label.toUpperCase() : item.activity_type.toUpperCase())
             + '  ·  ' + item.duration_minutes + ' min';
-        ctx.font = 'bold 32px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
-        ctx.fillStyle = '#10b981';
+        ctx.font = `bold 32px ${FONT}`;
+        ctx.fillStyle = '#047857';
         ctx.fillText(typeLine, cx, cy + 32);
         cy += 72;
 
         // Separator line
-        ctx.strokeStyle = '#e5e7eb';
+        ctx.strokeStyle = '#d1d5db';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(cx + maxW, cy);
         ctx.stroke();
-        cy += 40;
+        cy += ratio === '9:16' ? 56 : 40;
 
         // Motivation message (word-wrap)
-        ctx.font = '36px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+        const msgFontSize = ratio === '9:16' ? 40 : 36;
+        const msgLineHeight = ratio === '9:16' ? 54 : 48;
+        ctx.font = `${msgFontSize}px ${FONT}`;
         ctx.fillStyle = '#1f2937';
-        const msgLines = this._wrapCanvasText(ctx, '"' + (item.motivation_message || '') + '"', maxW);
-        msgLines.forEach(line => {
-            ctx.fillText(line, cx, cy + 36);
-            cy += 48;
-        });
-        cy += 24;
+        const msgText = item.motivation_message ? ('\u201C' + item.motivation_message + '\u201D') : '';
+        if (msgText) {
+            const msgLines = this._wrapCanvasText(ctx, msgText, maxW);
+            msgLines.forEach(line => {
+                ctx.fillText(line, cx, cy + msgFontSize);
+                cy += msgLineHeight;
+            });
+            cy += ratio === '9:16' ? 40 : 24;
+        }
 
         // Author name + city
         const name = (profile.name || 'Anonimo').split(' ')[0];
         const cityText = profile.city ? ' · ' + profile.city : '';
-        ctx.font = '600 28px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
-        ctx.fillStyle = '#6b7280';
-        ctx.fillText('— ' + name + cityText, cx, cy + 28);
+        ctx.font = `600 28px ${FONT}`;
+        ctx.fillStyle = '#374151';
+        ctx.fillText('\u2014 ' + name + cityText, cx, cy + 28);
+        cy += ratio === '9:16' ? 72 : 56;
 
-        // Branding at bottom of card
+        // Motivational quote (random, italic)
+        const quote = this._motivationalQuotes[Math.floor(Math.random() * this._motivationalQuotes.length)];
+        const quoteFontSize = ratio === '9:16' ? 28 : 24;
+        ctx.font = `italic ${quoteFontSize}px ${FONT}`;
+        ctx.fillStyle = '#047857';
+        const quoteLines = this._wrapCanvasText(ctx, quote, maxW);
+        quoteLines.forEach(line => {
+            ctx.fillText(line, cx, cy + quoteFontSize);
+            cy += quoteFontSize + 8;
+        });
+
+        // CTA and branding at bottom of card
         const brandY = cardY + cardH - pad;
-        ctx.font = '500 22px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
-        ctx.fillStyle = '#10b981';
         ctx.textAlign = 'center';
-        ctx.fillText('AcolheBem.com.br', W / 2, brandY - 28);
-        ctx.font = '400 18px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
-        ctx.fillStyle = '#9ca3af';
-        ctx.fillText('Plataforma de Acolhimento e Movimento', W / 2, brandY);
+
+        // CTA
+        ctx.font = `bold 24px ${FONT}`;
+        ctx.fillStyle = '#1a4d44';
+        ctx.fillText('Junte-se a nos em AcolheBem.com.br', W / 2, brandY - 16);
+
+        // Sub-branding
+        ctx.font = `400 18px ${FONT}`;
+        ctx.fillStyle = '#374151';
+        ctx.fillText('Plataforma de Acolhimento e Movimento', W / 2, brandY + 12);
         ctx.textAlign = 'left';
-
-        // Top branding outside card
-        ctx.font = 'bold 36px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.textAlign = 'center';
-        ctx.fillText('AcolheBem', W / 2, 90);
-        ctx.textAlign = 'left';
-
-        // Export
-        canvas.toBlob(async (blob) => {
-            if (!blob) return;
-            const file = new File([blob], 'acolhebem-atividade.png', { type: 'image/png' });
-
-            if (navigator.share && navigator.canShare?.({ files: [file] })) {
-                try {
-                    await navigator.share({ files: [file], title: 'AcolheBem - Atividade', text: item.motivation_message });
-                    return;
-                } catch { /* user cancelled or share failed — fall through to download */ }
-            }
-
-            // Fallback: download
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'acolhebem-atividade.png';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            ErrorHandler.showToast('Imagem salva!', 'success');
-        }, 'image/png');
     }
 
     _wrapCanvasText(ctx, text, maxWidth) {

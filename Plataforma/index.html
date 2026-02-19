@@ -34,7 +34,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
     <a class="skip-link" href="#feedList">Pular para o conteudo</a>
@@ -1041,6 +1041,25 @@
         </div>
     </div>
 
+    <!-- ===== SHARE PREVIEW MODAL ===== -->
+    <div id="sharePreviewModal" class="auth-overlay">
+        <div class="share-preview-card">
+            <button class="auth-close" id="sharePreviewClose">&times;</button>
+            <h3>Compartilhar Atividade</h3>
+            <div class="share-format-tabs">
+                <button class="share-format-btn active" data-ratio="1:1">1:1 Feed</button>
+                <button class="share-format-btn" data-ratio="9:16">9:16 Stories</button>
+            </div>
+            <div class="share-preview-container">
+                <canvas id="sharePreviewCanvas"></canvas>
+            </div>
+            <div class="share-preview-actions">
+                <button id="shareDownloadBtn" class="share-action-primary">Baixar imagem</button>
+                <button id="shareNativeBtn" class="share-action-secondary">Compartilhar</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Sentry: uncomment with a valid DSN to enable error tracking
@@ -1056,7 +1075,7 @@
     <script src="js/search.js?v=10"></script>
     <script src="js/notifications.js?v=10"></script>
     <script src="js/messages.js?v=10"></script>
-    <script src="js/app.js?v=11"></script>
+    <script src="js/app.js?v=12"></script>
 
     <!-- PWA Install Banner -->
     <div id="pwaInstallBanner" class="pwa-install-banner" style="display:none">

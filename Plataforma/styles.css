@@ -3869,3 +3869,40 @@ select:focus:not(:focus-visible){outline:none}
 [data-theme="dark"] .atv-whatsapp-link:hover{
     background:var(--wpp);
 }
+
+/* ============================================================
+   SHARE PREVIEW MODAL
+   ============================================================ */
+.share-preview-card{
+    max-width:480px;width:100%;background:var(--white);border-radius:var(--r-xl);
+    padding:24px;position:relative;max-height:90vh;overflow-y:auto;
+    animation:modalIn var(--dur-med) var(--ease-out);
+}
+.share-preview-card h3{
+    font-family:var(--f-display);font-size:1.15rem;font-weight:600;margin-bottom:4px;
+}
+.share-format-tabs{display:flex;gap:8px;margin:16px 0}
+.share-format-btn{
+    flex:1;padding:8px;border:2px solid var(--ink-10);border-radius:var(--r-sm);
+    background:none;cursor:pointer;font-weight:600;font-size:.82rem;color:var(--ink-40);
+    transition:all var(--dur-fast);
+}
+.share-format-btn.active{border-color:var(--emerald);color:var(--emerald);background:var(--emerald-l)}
+.share-preview-container{
+    display:flex;justify-content:center;background:var(--ink-05);
+    border-radius:var(--r-md);padding:16px;margin-bottom:16px;
+}
+.share-preview-container canvas{max-width:100%;max-height:60vh;border-radius:8px}
+.share-preview-actions{display:flex;gap:10px}
+.share-action-primary{
+    flex:1;padding:12px;background:var(--emerald);color:white;border:none;
+    border-radius:var(--r-sm);font-weight:600;cursor:pointer;
+    transition:background var(--dur-fast);
+}
+.share-action-primary:hover{background:var(--emerald-d)}
+.share-action-secondary{
+    flex:1;padding:12px;background:var(--ink-05);color:var(--ink);border:none;
+    border-radius:var(--r-sm);font-weight:600;cursor:pointer;
+    transition:background var(--dur-fast);
+}
+.share-action-secondary:hover{background:var(--ink-10)}
