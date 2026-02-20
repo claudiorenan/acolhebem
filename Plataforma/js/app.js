@@ -3341,174 +3341,58 @@ class AcolheBemApp {
     }
 
     renderPsiFeaturedCards(psychologists, grid) {
-        grid.innerHTML = '';
-
-        psychologists.forEach((psi, i) => {
-            const card = document.createElement('div');
-            card.className = 'psi-featured';
-            card.style.animationDelay = `${i * 0.08}s`;
-
-            const nameEsc = this.escapeHTML(psi.name);
-            const profileUrl = this.escapeHTML(psi.profileUrl);
-            const wppMsg = encodeURIComponent(`Oi Psi. ${psi.name}, encontrei o seu perfil na plataforma AcolheBem do Cadê Meu Psi. Gostaria de saber mais sobre o atendimento.`);
-            const wppUrl = psi.whatsappNumber
-                ? `https://wa.me/${psi.whatsappNumber}?text=${wppMsg}`
-                : (psi.whatsappUrl || profileUrl);
-
-            const photoHtml = psi.photo
-                ? `<img src="${this.escapeHTML(psi.photo)}" alt="${nameEsc}" class="psi-featured-photo" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
-                : '';
-            const fallbackHtml = `<div class="psi-featured-photo-fallback" ${psi.photo ? 'style="display:none"' : ''}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>`;
-
-            const abordagem = psi.abordagem ? `<span class="psi-featured-tag">${this.escapeHTML(psi.abordagem)}</span>` : '';
-            const atendimento = psi.atendimento ? `<span class="psi-featured-tag psi-featured-tag-outline">${this.escapeHTML(psi.atendimento)}</span>` : '';
-            const especialidade = psi.especialidade ? `<p class="psi-featured-esp">${this.escapeHTML(psi.especialidade)}</p>` : '';
-            const desc = psi.description ? `<p class="psi-featured-desc">${this.escapeHTML(psi.description)}</p>` : '';
-
-            card.innerHTML = `
-                <div class="psi-featured-top">
-                    ${photoHtml}
-                    ${fallbackHtml}
-                    <div class="psi-featured-info">
-                        <div class="psi-featured-name">Psi. ${nameEsc}</div>
-                        ${psi.crp ? `<div class="psi-featured-crp">CRP ${this.escapeHTML(psi.crp)}</div>` : ''}
-                        <div class="psi-featured-status">
-                            <span class="psi-featured-status-dot"></span>
-                            Disponivel hoje
-                        </div>
-                    </div>
-                </div>
-                <div class="psi-featured-tags">
-                    ${abordagem}${atendimento}
-                </div>
-                ${especialidade}
-                ${desc}
-                <a href="${wppUrl}" target="_blank" rel="noopener noreferrer" class="psi-featured-btn psi-featured-btn-wpp">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                    Chamar psicólogo no WhatsApp
-                </a>
-                <div class="psi-featured-actions">
-                    <a href="${profileUrl}" target="_blank" rel="noopener noreferrer" class="psi-featured-btn psi-featured-btn-acessivel">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-                        Terapia Acessível
-                    </a>
-                    <button class="psi-featured-btn psi-featured-btn-site" disabled>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                        Ver Site (Psicólogo sem site)
-                    </button>
-                </div>
-            `;
-
-            grid.appendChild(card);
-        });
+        this._renderPsiCompactCards(psychologists, grid, true);
     }
 
     renderPsiCards(psychologists, grid, isAvailable) {
+        this._renderPsiCompactCards(psychologists, grid, isAvailable);
+    }
+
+    /** Unified compact card renderer for both available and active psychologists */
+    _renderPsiCompactCards(psychologists, grid, isAvailable) {
         grid.innerHTML = '';
 
         psychologists.forEach((psi, i) => {
             const card = document.createElement('div');
-            card.className = 'psi-card';
+            card.className = `psi-compact-card${isAvailable ? ' psi-compact-card--available' : ''}`;
             card.style.animationDelay = `${i * 0.06}s`;
 
-            const profileUrl = this.escapeHTML(psi.profileUrl);
             const nameEsc = this.escapeHTML(psi.name);
+            const profileUrl = this.escapeHTML(psi.profileUrl);
             const wppMsg = encodeURIComponent(`Oi Psi. ${psi.name}, encontrei o seu perfil na plataforma AcolheBem do Cadê Meu Psi. Gostaria de saber mais sobre o atendimento.`);
             const wppUrl = psi.whatsappNumber
                 ? `https://wa.me/${psi.whatsappNumber}?text=${wppMsg}`
                 : (psi.whatsappUrl || profileUrl);
 
             const photoHtml = psi.photo
-                ? `<img src="${this.escapeHTML(psi.photo)}" alt="${nameEsc}" class="psi-card-avatar" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                ? `<img src="${this.escapeHTML(psi.photo)}" alt="${nameEsc}" class="psi-compact-photo" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
                 : '';
-
-            const fallbackHtml = `<div class="psi-card-avatar-fallback" ${psi.photo ? 'style="display:none"' : ''}>
+            const fallbackHtml = `<div class="psi-compact-photo-fallback" ${psi.photo ? 'style="display:none"' : ''}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>`;
 
-            const crpHtml = psi.crp ? `<span class="psi-card-crp">CRP ${this.escapeHTML(psi.crp)}</span>` : '';
-
-            const abordagemHtml = psi.abordagem
-                ? `<div class="psi-card-detail"><span class="psi-card-detail-label">Abordagem:</span> <span class="psi-card-detail-value">${this.escapeHTML(psi.abordagem)}</span></div>`
-                : '';
-
-            const atendimentoHtml = psi.atendimento
-                ? `<div class="psi-card-detail"><span class="psi-card-detail-label">Atendimento:</span> <span class="psi-card-detail-text">${this.escapeHTML(psi.atendimento)}</span></div>`
-                : '';
-
-            const especialidadeHtml = psi.especialidade
-                ? `<div class="psi-card-detail"><span class="psi-card-detail-label">Especialidade:</span> <span class="psi-card-detail-text">${this.escapeHTML(psi.especialidade)}</span></div>`
-                : '';
-
-            const descHtml = psi.description
-                ? `<p class="psi-card-detail-desc">${this.escapeHTML(psi.description)}</p>`
-                : '';
+            const crpHtml = psi.crp ? `<div class="psi-compact-crp">CRP ${this.escapeHTML(psi.crp)}</div>` : '';
+            const abordagemTag = psi.abordagem ? `<span class="psi-compact-tag">${this.escapeHTML(psi.abordagem)}</span>` : '';
 
             card.innerHTML = `
-                <div class="psi-card-header" role="button" tabindex="0" aria-expanded="false">
-                    <div class="psi-card-top">
-                        ${photoHtml}
-                        ${fallbackHtml}
-                        <div class="psi-card-body">
-                            <div class="psi-card-name">Psi. ${nameEsc}</div>
-                            ${crpHtml}
-                            <div class="psi-card-status${isAvailable ? '' : ' psi-card-status-active'}">
-                                <span class="psi-card-status-dot"></span>
-                                ${isAvailable ? 'Disponível hoje' : 'Ativo'}
-                            </div>
-                        </div>
-                    </div>
-                    <div class="psi-card-chevron">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                    </div>
+                <div class="psi-compact-avatar">
+                    ${photoHtml}
+                    ${fallbackHtml}
                 </div>
-                <div class="psi-card-expand">
-                    <div class="psi-card-expand-inner">
-                        ${abordagemHtml}
-                        ${atendimentoHtml}
-                        ${especialidadeHtml}
-                        ${descHtml}
-                        <a href="${wppUrl}" target="_blank" rel="noopener noreferrer" class="psi-card-btn psi-card-btn-wpp" onclick="event.stopPropagation()">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                            Chamar psicólogo no WhatsApp
-                        </a>
-                        <div class="psi-card-actions">
-                            <a href="${profileUrl}" target="_blank" rel="noopener noreferrer" class="psi-card-btn psi-card-btn-acessivel" onclick="event.stopPropagation()">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-                                Terapia Acessível
-                            </a>
-                            <button class="psi-card-btn psi-card-btn-site" disabled onclick="event.stopPropagation()">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                Ver Site (Psicólogo sem site)
-                            </button>
-                        </div>
+                <div class="psi-compact-info">
+                    <div class="psi-compact-name">Psi. ${nameEsc}</div>
+                    ${crpHtml}
+                    <div class="psi-compact-status${isAvailable ? '' : ' psi-compact-status--active'}">
+                        <span class="psi-compact-status-dot"></span>
+                        ${isAvailable ? 'Disponivel hoje' : 'Ativo'}
                     </div>
+                    ${abordagemTag ? `<div class="psi-compact-tags">${abordagemTag}</div>` : ''}
                 </div>
+                <a href="${wppUrl}" target="_blank" rel="noopener noreferrer" class="psi-compact-wpp">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                    <span class="psi-compact-wpp-label">WhatsApp</span>
+                </a>
             `;
-
-            // Accordion toggle
-            const header = card.querySelector('.psi-card-header');
-            const toggleCard = () => {
-                const isOpen = card.classList.contains('open');
-                // Close all other cards
-                grid.querySelectorAll('.psi-card.open').forEach(c => {
-                    if (c !== card) {
-                        c.classList.remove('open');
-                        c.querySelector('.psi-card-header')?.setAttribute('aria-expanded', 'false');
-                    }
-                });
-                card.classList.toggle('open', !isOpen);
-                header.setAttribute('aria-expanded', String(!isOpen));
-            };
-            header.addEventListener('click', toggleCard);
-            header.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    toggleCard();
-                }
-            });
 
             grid.appendChild(card);
         });

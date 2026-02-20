@@ -1374,11 +1374,7 @@ select:focus:not(:focus-visible){outline:none}
 .feed-list.hide-avatars .feed-reply-avatar{
     visibility:hidden;
 }
-/* Hide avatars mode — psi cards */
-.psi-available-grid.hide-avatars .psi-card-avatar,
-.psi-available-grid.hide-avatars .psi-card-avatar-fallback{
-    visibility:hidden;
-}
+/* Hide avatars mode — psi cards (now uses psi-compact-* classes) */
 
 /* Anonymous Toggle */
 .anon-toggle{
@@ -2162,324 +2158,158 @@ select:focus:not(:focus-visible){outline:none}
     border-color:var(--emerald);
 }
 
-/* Featured Grid — available psychologists */
-.psi-featured-grid{
-    display:flex;flex-direction:column;gap:16px;
+/* ---- Compact Psi Cards (unified for both grids) ---- */
+.psi-featured-grid,
+.psi-available-grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:12px;
+}
+@media(min-width:601px){
+    .psi-featured-grid,
+    .psi-available-grid{
+        grid-template-columns:repeat(4,1fr);
+        gap:16px;
+    }
+}
+@media(min-width:601px) and (max-width:900px){
+    .psi-featured-grid,
+    .psi-available-grid{
+        grid-template-columns:repeat(2,1fr);
+    }
 }
 
-/* Featured Card */
-.psi-featured{
+/* Single compact card */
+.psi-compact-card{
     background:var(--white);
-    border:1.5px solid var(--emerald);
+    border:1px solid var(--ink-10);
     border-radius:var(--r-lg);
-    padding:20px;
-    display:flex;flex-direction:column;gap:14px;
+    padding:16px;
+    display:flex;
+    align-items:center;
+    gap:12px;
     animation:psiCardIn .4s var(--ease-out) both;
+    transition:border-color var(--dur-fast),box-shadow var(--dur-fast);
+}
+.psi-compact-card:hover{
+    border-color:var(--ink-20);
+    box-shadow:0 2px 8px rgba(0,0,0,.06);
+}
+.psi-compact-card--available{
+    border-color:var(--emerald);
     box-shadow:0 2px 12px rgba(47,111,100,.08);
 }
-.psi-featured-top{
-    display:flex;align-items:center;gap:16px;
+
+/* Desktop: vertical card layout */
+@media(min-width:601px){
+    .psi-compact-card{
+        flex-direction:column;
+        align-items:center;
+        text-align:center;
+        padding:20px 16px;
+        gap:10px;
+    }
 }
-.psi-featured-photo{
-    width:88px;height:88px;border-radius:50%;
+
+/* Avatar */
+.psi-compact-photo{
+    width:64px;height:64px;border-radius:50%;
     object-fit:cover;flex-shrink:0;
     background:var(--ink-05);
-    border:3px solid var(--emerald-l);
+    border:2px solid var(--emerald-l);
 }
-.psi-featured-photo-fallback{
-    width:88px;height:88px;border-radius:50%;flex-shrink:0;
-    background:var(--ink-05);border:3px solid var(--emerald-l);
+.psi-compact-photo-fallback{
+    width:64px;height:64px;border-radius:50%;flex-shrink:0;
+    background:var(--ink-05);border:2px solid var(--emerald-l);
     display:flex;align-items:center;justify-content:center;
     color:var(--ink-20);
 }
-.psi-featured-photo-fallback svg{width:40px;height:40px}
-.psi-featured-info{flex:1;min-width:0}
-.psi-featured-name{
+.psi-compact-photo-fallback svg{width:28px;height:28px}
+@media(min-width:601px){
+    .psi-compact-photo,
+    .psi-compact-photo-fallback{width:72px;height:72px}
+    .psi-compact-photo-fallback svg{width:32px;height:32px}
+}
+
+/* Info block */
+.psi-compact-info{flex:1;min-width:0}
+.psi-compact-name{
     font-family:var(--f-display);
-    font-size:1.08rem;font-weight:700;color:var(--ink);
+    font-size:.95rem;font-weight:700;color:var(--ink);
     line-height:1.3;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.psi-featured-crp{
-    font-size:.78rem;font-weight:600;
-    color:var(--ink-40);margin-top:2px;
+.psi-compact-crp{
+    font-size:.72rem;font-weight:600;
+    color:var(--ink-40);margin-top:1px;
 }
-.psi-featured-status{
-    display:flex;align-items:center;gap:6px;
-    font-size:.78rem;font-weight:600;
-    color:#16a34a;margin-top:6px;
+.psi-compact-status{
+    display:flex;align-items:center;gap:5px;
+    font-size:.72rem;font-weight:600;
+    color:#16a34a;margin-top:4px;
 }
-.psi-featured-status-dot{
-    width:9px;height:9px;border-radius:50%;
+@media(min-width:601px){
+    .psi-compact-status{justify-content:center}
+}
+.psi-compact-status--active{color:var(--ink-40)}
+.psi-compact-status-dot{
+    width:7px;height:7px;border-radius:50%;
     background:#16a34a;
     animation:breathe 2s ease-in-out infinite;
 }
-.psi-featured-tags{
-    display:flex;flex-wrap:wrap;gap:6px;
-}
-.psi-featured-tag{
+.psi-compact-status--active .psi-compact-status-dot{background:var(--ink-40)}
+
+/* Tags */
+.psi-compact-tags{margin-top:4px}
+.psi-compact-tag{
     display:inline-block;
-    padding:3px 12px;border-radius:100px;
+    padding:2px 10px;border-radius:100px;
     background:var(--emerald-l);color:var(--emerald-d);
-    font-size:.78rem;font-weight:600;
+    font-size:.7rem;font-weight:600;
 }
-.psi-featured-tag-outline{
-    background:transparent;
-    border:1.5px solid var(--ink-10);
-    color:var(--ink-70);
-}
-.psi-featured-esp{
-    font-size:.82rem;color:var(--ink-70);
-    line-height:1.5;margin:0;
-}
-.psi-featured-desc{
-    font-size:.82rem;color:var(--ink-40);
-    line-height:1.5;margin:0;
-}
-.psi-featured-actions{
-    display:flex;gap:8px;margin-top:2px;
-}
-.psi-featured-btn{
+
+/* WhatsApp button */
+.psi-compact-wpp{
     display:inline-flex;align-items:center;justify-content:center;gap:6px;
-    flex:1;padding:11px 14px;
+    padding:9px 14px;
     border-radius:var(--r-md);
-    font-size:.84rem;font-weight:700;
-    text-decoration:none;
-    transition:all var(--dur-fast) var(--ease-out);
-    cursor:pointer;line-height:1.2;
-}
-.psi-featured-btn svg{width:16px;height:16px;flex-shrink:0}
-.psi-featured-btn-wpp{
     background:var(--wpp);color:var(--white);
+    font-size:.8rem;font-weight:700;
+    text-decoration:none;
+    flex-shrink:0;
     box-shadow:0 2px 8px rgba(37,211,102,.25);
+    transition:all var(--dur-fast) var(--ease-out);
+    cursor:pointer;line-height:1;
 }
-.psi-featured-btn-wpp:hover{
+.psi-compact-wpp svg{width:18px;height:18px;flex-shrink:0}
+.psi-compact-wpp:hover{
     background:var(--wpp-d);
     transform:translateY(-1px);
     box-shadow:0 4px 12px rgba(37,211,102,.35);
 }
-.psi-featured-btn-wpp{
-    width:100%;
+.psi-compact-wpp:active{transform:translateY(0)}
+@media(min-width:601px){
+    .psi-compact-wpp{width:100%;justify-content:center;padding:10px 12px}
 }
-.psi-featured-btn-acessivel{
-    background:transparent;
-    color:var(--emerald);
-    border:2px solid var(--emerald);
-}
-.psi-featured-btn-acessivel:hover{
-    background:var(--emerald-l);
-    transform:translateY(-1px);
-}
-.psi-featured-btn-site{
-    background:var(--ink-05);
-    color:#b91c1c;
-    border:1.5px dashed #fca5a5;
-    cursor:not-allowed;
-    opacity:.7;
-}
-.psi-featured-btn-site svg{stroke:#b91c1c}
-.psi-featured-btn-site:hover{
-    transform:none;
-    background:var(--ink-05);
+@media(max-width:600px){
+    .psi-compact-wpp-label{display:none}
 }
 
-/* Active (non-available) status color */
-.psi-card-status-active{
-    color:var(--ink-40);
-}
-.psi-card-status-active .psi-card-status-dot{
-    background:var(--ink-40);
-}
-
-/* Psi Section Footer */
-.psi-section-footer{
-    margin-top:28px;padding:20px 8px;
-    text-align:center;
-    border-top:1px solid var(--ink-10);
-}
-
-/* Cards Grid */
-.psi-available-grid{
-    display:flex;flex-direction:column;gap:12px;
-}
-
-/* Single Card */
-.psi-card{
-    background:var(--white);
-    border:1px solid var(--ink-10);
-    border-radius:var(--r-lg);
-    color:inherit;
-    overflow:hidden;
-    transition:border-color var(--dur-med) var(--ease-out),
-               box-shadow var(--dur-med) var(--ease-out);
-    animation:psiCardIn .4s var(--ease-out) both;
-}
-.psi-card.open{
-    border-color:var(--emerald);
-    box-shadow:var(--shadow-2), 0 0 0 1px var(--emerald);
+/* Hide avatars mode */
+.psi-available-grid.hide-avatars .psi-compact-photo,
+.psi-available-grid.hide-avatars .psi-compact-photo-fallback,
+.psi-featured-grid.hide-avatars .psi-compact-photo,
+.psi-featured-grid.hide-avatars .psi-compact-photo-fallback{
+    visibility:hidden;
 }
 
 @keyframes psiCardIn{
     from{opacity:0;transform:translateY(16px)}
     to{opacity:1;transform:translateY(0)}
 }
-
-/* Card Header — clickable accordion trigger */
-.psi-card-header{
-    display:flex;align-items:center;gap:10px;
-    padding:20px;
-    cursor:pointer;
-    transition:background var(--dur-fast);
-}
-.psi-card-header:hover{background:var(--ink-05)}
-
-/* Card Top — avatar + info */
-.psi-card-top{display:flex;align-items:center;gap:14px;flex:1;min-width:0}
-
-/* Chevron */
-.psi-card-chevron{
-    width:28px;height:28px;flex-shrink:0;
-    display:flex;align-items:center;justify-content:center;
-    color:var(--ink-20);
-    transition:transform var(--dur-med) var(--ease-spring),color var(--dur-fast);
-}
-.psi-card-chevron svg{width:18px;height:18px}
-.psi-card.open .psi-card-chevron{transform:rotate(180deg);color:var(--ink-70)}
-
-/* Avatar */
-.psi-card-avatar{
-    width:64px;height:64px;border-radius:50%;
-    object-fit:cover;flex-shrink:0;
-    background:var(--ink-05);
-}
-.psi-card-avatar-fallback{
-    width:64px;height:64px;border-radius:50%;flex-shrink:0;
-    background:var(--ink-05);
-    display:flex;align-items:center;justify-content:center;
-    color:var(--ink-20);
-}
-.psi-card-avatar-fallback svg{width:30px;height:30px}
-
-/* Body */
-.psi-card-body{flex:1;min-width:0}
-
-.psi-card-name{
-    font-family:var(--f-display);
-    font-size:1rem;font-weight:700;
-    line-height:1.3;color:var(--ink);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-
-.psi-card-crp{
-    display:inline-block;
-    font-size:.75rem;font-weight:600;
-    color:var(--ink-40);
-    margin-top:2px;
-}
-
-.psi-card-status{
-    display:flex;align-items:center;gap:6px;
-    font-size:.75rem;font-weight:600;
-    color:#16a34a;
-    margin-top:4px;
-}
-.psi-card-status-dot{
-    width:8px;height:8px;border-radius:50%;
-    background:#16a34a;
-    animation:breathe 2s ease-in-out infinite;
-}
 @keyframes breathe{
     0%,100%{opacity:1;transform:scale(1)}
     50%{opacity:.5;transform:scale(.85)}
-}
-
-/* Expandable area */
-.psi-card-expand{
-    max-height:0;overflow:hidden;
-    transition:max-height .55s var(--ease-out);
-}
-.psi-card.open .psi-card-expand{max-height:800px}
-.psi-card-expand-inner{
-    padding:0 20px 20px;
-    display:flex;flex-direction:column;gap:12px;
-}
-
-/* Abordagem detail */
-.psi-card-detail{
-    font-size:.82rem;color:var(--ink-70);
-}
-.psi-card-detail-label{
-    font-weight:600;color:var(--ink-40);
-    text-transform:uppercase;letter-spacing:.5px;
-    font-size:.75rem;
-}
-.psi-card-detail-value{
-    display:inline-block;
-    padding:3px 12px;border-radius:100px;
-    background:var(--emerald-l);color:var(--emerald-d);
-    font-size:.8rem;font-weight:600;
-    margin-left:4px;
-}
-
-/* Detail text (atendimento, especialidade, valor) */
-.psi-card-detail-text{
-    font-size:.82rem;color:var(--ink-70);
-    font-weight:500;
-}
-/* Full description inside expand */
-.psi-card-detail-desc{
-    font-size:.82rem;color:var(--ink-40);
-    line-height:1.5;
-    margin:0;
-}
-
-/* Action Buttons */
-.psi-card-actions{display:flex;gap:8px}
-
-.psi-card-btn{
-    display:inline-flex;align-items:center;justify-content:center;gap:6px;
-    flex:1;padding:10px 14px;
-    border-radius:var(--r-md);
-    font-size:.82rem;font-weight:700;
-    text-decoration:none;
-    transition:all var(--dur-fast) var(--ease-out);
-    cursor:pointer;line-height:1.2;
-}
-.psi-card-btn svg{width:16px;height:16px;flex-shrink:0}
-
-.psi-card-btn-wpp{
-    background:var(--wpp);color:var(--white);
-    box-shadow:0 2px 8px rgba(37,211,102,.25);
-    width:100%;
-}
-.psi-card-btn-wpp:hover{
-    background:var(--wpp-d);
-    transform:translateY(-1px);
-    box-shadow:0 4px 12px rgba(37,211,102,.35);
-}
-.psi-card-btn-wpp:active{transform:translateY(0)}
-
-.psi-card-btn-acessivel{
-    background:transparent;
-    color:var(--emerald);
-    border:2px solid var(--emerald);
-}
-.psi-card-btn-acessivel:hover{
-    background:var(--emerald-l);
-    transform:translateY(-1px);
-}
-.psi-card-btn-acessivel:active{transform:translateY(0)}
-
-.psi-card-btn-site{
-    background:var(--ink-05);
-    color:#b91c1c;
-    border:1.5px dashed #fca5a5;
-    cursor:not-allowed;
-    opacity:.7;
-}
-.psi-card-btn-site svg{stroke:#b91c1c}
-.psi-card-btn-site:hover{
-    transform:none;
-    background:var(--ink-05);
 }
 
 /* Footer CTA */
@@ -2512,37 +2342,16 @@ select:focus:not(:focus-visible){outline:none}
     .psi-state{padding:32px 12px}
     .psi-state p{font-size:.85rem}
     .psi-state-icon{font-size:1.6rem}
-    .psi-available-grid{gap:10px}
-    .psi-card{border-radius:var(--r-md)}
-    .psi-card-header{padding:14px;gap:8px}
-    .psi-card-top{gap:10px}
-    .psi-card-avatar,.psi-card-avatar-fallback{width:48px;height:48px}
-    .psi-card-avatar-fallback svg{width:24px;height:24px}
-    .psi-card-name{font-size:.88rem;white-space:normal;-webkit-line-clamp:2;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden}
-    .psi-card-crp{font-size:.7rem}
-    .psi-card-status{font-size:.7rem;margin-top:2px}
-    .psi-card-chevron{width:24px;height:24px}
-    .psi-card-chevron svg{width:16px;height:16px}
-    .psi-card-expand-inner{padding:0 14px 14px;gap:10px}
-    .psi-card-detail-value{font-size:.75rem;padding:2px 10px}
-    .psi-card-detail-desc{font-size:.78rem}
-    .psi-card-actions{flex-direction:column}
-    .psi-card-btn{font-size:.8rem;padding:9px 12px}
     .psi-available-footer{margin-top:16px}
     .psi-cta-btn{padding:10px 18px;font-size:.82rem;width:100%;justify-content:center}
     .psi-retry-btn{font-size:.8rem;padding:7px 16px}
-    .psi-featured-grid{gap:12px}
-    .psi-featured{padding:16px;gap:12px}
-    .psi-featured-photo,.psi-featured-photo-fallback{width:72px;height:72px;border-width:2px}
-    .psi-featured-photo-fallback svg{width:32px;height:32px}
-    .psi-featured-top{gap:12px}
-    .psi-featured-name{font-size:.96rem}
-    .psi-featured-crp{font-size:.72rem}
-    .psi-featured-status{font-size:.72rem}
-    .psi-featured-tag{font-size:.72rem;padding:2px 10px}
-    .psi-featured-esp,.psi-featured-desc{font-size:.78rem}
-    .psi-featured-actions{flex-direction:column}
-    .psi-featured-btn{font-size:.82rem;padding:10px 12px}
+    .psi-compact-card{padding:12px;gap:10px}
+    .psi-compact-photo,.psi-compact-photo-fallback{width:48px;height:48px}
+    .psi-compact-photo-fallback svg{width:22px;height:22px}
+    .psi-compact-name{font-size:.88rem}
+    .psi-compact-crp{font-size:.68rem}
+    .psi-compact-status{font-size:.68rem}
+    .psi-compact-tag{font-size:.66rem}
     .psi-section-title{font-size:1rem;margin:18px 0 10px}
 }
 
@@ -2550,7 +2359,6 @@ select:focus:not(:focus-visible){outline:none}
 @media(min-width:769px) and (max-width:1023px){
     .topbar{padding:0 16px;gap:6px}
     .tab-btn{padding:8px 14px;font-size:.82rem}
-    .psi-available-grid,.psi-featured-grid{grid-template-columns:repeat(2,1fr)}
 }
 
 /* Very small screens (< 380px) — icon-only tabs */
@@ -2561,12 +2369,11 @@ select:focus:not(:focus-visible){outline:none}
     .topbar-logo{font-size:.88rem}
     .topbar-btn{width:44px;height:44px}
     .topbar-btn svg{width:18px;height:18px}
-    .psi-card-header{padding:10px;gap:6px}
-    .psi-card-avatar,.psi-card-avatar-fallback{width:40px;height:40px}
-    .psi-card-avatar-fallback svg{width:20px;height:20px}
-    .psi-card-name{font-size:.84rem}
-    .psi-card-expand-inner{padding:0 10px 10px;gap:8px}
-    .psi-card-btn{font-size:.75rem;padding:8px 10px;min-height:44px}
+    .psi-compact-card{padding:10px;gap:8px}
+    .psi-compact-photo,.psi-compact-photo-fallback{width:40px;height:40px}
+    .psi-compact-photo-fallback svg{width:18px;height:18px}
+    .psi-compact-name{font-size:.82rem}
+    .psi-compact-wpp{padding:8px 10px;font-size:.75rem}
     .psi-cta-btn{font-size:.78rem;padding:9px 14px;min-height:44px}
     #heroSVG{height:320px}
 }
