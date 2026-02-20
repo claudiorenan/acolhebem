@@ -134,6 +134,12 @@ const Messages = {
   },
 
   async sendMessage(conversationId, content) {
+    // Rate limiting (50 msgs/hour, defined in feed.js RATE_LIMITS)
+    const rl = await checkRateLimit('send_message');
+    if (!rl.allowed) {
+      return { error: `Você atingiu o limite de ${rl.max} mensagens por hora. Tente novamente mais tarde.` };
+    }
+
     const sb = window.supabaseClient;
     const { data, error } = await sb
       .from('messages')

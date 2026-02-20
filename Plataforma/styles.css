@@ -1586,6 +1586,13 @@ select:focus:not(:focus-visible){outline:none}
     background:transparent;color:var(--emerald);
 }
 .user-profile-follow-btn.following:hover{border-color:#c0392b;color:#c0392b}
+.user-profile-actions{display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.user-profile-dm-btn{
+    display:inline-flex;align-items:center;gap:6px;
+    background:transparent;color:var(--emerald);border-color:var(--emerald);
+}
+.user-profile-dm-btn:hover{background:var(--emerald-l)}
+.user-profile-dm-btn svg{flex-shrink:0}
 .composer-char-counter{
     display:block;text-align:right;font-size:.7rem;color:var(--ink-20);
     margin-top:2px;padding-right:4px;

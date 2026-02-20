@@ -4112,6 +4112,13 @@ class AcolheBemApp {
         const followBtnHTML = !isOwn && this.currentUser
             ? `<button class="user-profile-follow-btn${isFollowing ? ' following' : ''}" data-user-id="${userId}">${isFollowing ? 'Seguindo' : 'Seguir'}</button>`
             : '';
+        const dmProfileBtnHTML = !isOwn && this.currentUser && this._dmEnabled
+            ? `<button class="user-profile-follow-btn user-profile-dm-btn" data-user-id="${userId}" data-user-name="${this.escapeHTML(profile?.name || userName)}" title="Enviar mensagem">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                </svg> Mensagem
+              </button>`
+            : '';
 
         const header = document.createElement('div');
         header.className = 'user-profile-header';
@@ -4127,11 +4134,14 @@ class AcolheBemApp {
                     <span><strong>${posts.length}</strong> posts</span>
                 </div>
             </div>
-            ${followBtnHTML}
+            <div class="user-profile-actions">
+                ${followBtnHTML}
+                ${dmProfileBtnHTML}
+            </div>
         `;
 
         // Follow button handler
-        const followBtn = header.querySelector('.user-profile-follow-btn');
+        const followBtn = header.querySelector('.user-profile-follow-btn:not(.user-profile-dm-btn)');
         if (followBtn) {
             followBtn.addEventListener('click', async () => {
                 followBtn.disabled = true;
@@ -4148,6 +4158,14 @@ class AcolheBemApp {
                     followBtn.textContent = 'Seguindo';
                 }
                 followBtn.disabled = false;
+            });
+        }
+
+        // DM button handler on profile
+        const dmProfileBtn = header.querySelector('.user-profile-dm-btn');
+        if (dmProfileBtn) {
+            dmProfileBtn.addEventListener('click', () => {
+                this.openDMWith(userId, profile?.name || userName);
             });
         }
 
@@ -6085,6 +6103,7 @@ class AcolheBemApp {
         this.$('dmSendBtn').disabled = true;
         const { message, error } = await Messages.sendMessage(this._dmConversationId, content);
         if (error) {
+            ErrorHandler.showToast(error, 'warning');
             this.$('dmSendBtn').disabled = false;
             return;
         }
