@@ -2639,8 +2639,6 @@ class AcolheBemApp {
                     await sb.from('checkin_reactions').delete().eq('id', existing.id);
                     likeBtn.classList.remove('liked');
                     iconEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
-                    const cur = parseInt(countEl.textContent) || 0;
-                    countEl.textContent = cur > 1 ? cur - 1 : '';
                 } else {
                     // Different type — update
                     await sb.from('checkin_reactions').update({ reaction_type: reactionType }).eq('id', existing.id);
@@ -2656,9 +2654,14 @@ class AcolheBemApp {
                 likeBtn.classList.add('liked');
                 const rObj = this._reactionTypes.find(r => r.type === reactionType);
                 iconEl.textContent = rObj?.icon || '❤️';
-                const cur = parseInt(countEl.textContent) || 0;
-                countEl.textContent = cur + 1;
             }
+
+            // Sync count from DB to avoid desync with concurrent reactions
+            const { count: actualCount } = await sb
+                .from('checkin_reactions')
+                .select('*', { count: 'exact', head: true })
+                .eq('checkin_id', checkinId);
+            countEl.textContent = actualCount > 0 ? actualCount : '';
         } catch (err) {
             console.error('Error toggling checkin reaction:', err);
             ErrorHandler.showToast('Erro ao reagir. Tente novamente.', 'error');
@@ -2863,28 +2866,32 @@ class AcolheBemApp {
         const profile = this._shareProfile;
         if (!item || !profile) return;
 
-        const W = 1080;
-        const H = ratio === '9:16' ? 1920 : 1080;
+        const BASE_W = 1080;
+        const BASE_H = ratio === '9:16' ? 1920 : 1080;
+        const scale = window.innerWidth < 768 ? 0.667 : 1;
+        const W = Math.round(BASE_W * scale);
+        const H = Math.round(BASE_H * scale);
 
         const canvas = document.getElementById('sharePreviewCanvas');
         canvas.width = W;
         canvas.height = H;
         const ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale);
 
         const FONT = '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
 
-        // Background gradient (dark emerald)
-        const grad = ctx.createLinearGradient(0, 0, W, H);
+        // Background gradient (dark emerald) — use BASE dimensions for drawing coords
+        const grad = ctx.createLinearGradient(0, 0, BASE_W, BASE_H);
         grad.addColorStop(0, '#1a4d44');
         grad.addColorStop(1, '#047857');
         ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H);
+        ctx.fillRect(0, 0, BASE_W, BASE_H);
 
         // Top branding outside card (white on dark bg — good contrast)
         ctx.font = `bold 38px ${FONT}`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
-        ctx.fillText('AcolheBem', W / 2, ratio === '9:16' ? 100 : 90);
+        ctx.fillText('AcolheBem', BASE_W / 2, ratio === '9:16' ? 100 : 90);
         ctx.textAlign = 'left';
 
         // White card
@@ -2893,8 +2900,8 @@ class AcolheBemApp {
         const bottomOffset = ratio === '9:16' ? 120 : 140;
         const cardX = margin;
         const cardY = topOffset;
-        const cardW = W - margin * 2;
-        const cardH = H - topOffset - bottomOffset;
+        const cardW = BASE_W - margin * 2;
+        const cardH = BASE_H - topOffset - bottomOffset;
         const radius = 32;
 
         ctx.beginPath();
@@ -2975,10 +2982,10 @@ class AcolheBemApp {
 
         ctx.font = `bold 30px ${FONT}`;
         ctx.fillStyle = '#1a4d44';
-        ctx.fillText('AcolheBem.com.br', W / 2, brandY - 16);
+        ctx.fillText('AcolheBem.com.br', BASE_W / 2, brandY - 16);
         ctx.font = `500 22px ${FONT}`;
         ctx.fillStyle = '#1a4d44';
-        ctx.fillText('Plataforma de Acolhimento e Movimento', W / 2, brandY + 16);
+        ctx.fillText('Plataforma de Acolhimento e Movimento', BASE_W / 2, brandY + 16);
         ctx.textAlign = 'left';
     }
 
